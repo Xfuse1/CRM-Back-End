@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { WhatsAppController } from '../controllers/WhatsAppController';
 import { WhatsAppPersistenceService } from '../../../application/whatsapp/WhatsAppPersistenceService';
 import { authenticateToken } from '../../../middleware/auth';
@@ -52,7 +52,7 @@ whatsappRouter.post(
   messageLimiter,
   idempotencyMiddleware, // Prevent duplicate message sends
   validate(schemas.sendMessage),
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     await whatsAppController.sendMessage(req, res);
     
     // Cache response for idempotency
@@ -66,7 +66,7 @@ whatsappRouter.post(
  */
 whatsappRouter.get(
   '/chats',
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const chats = await persistenceService.getChats();
 
     // Map to DTOs
@@ -95,7 +95,7 @@ whatsappRouter.get(
  */
 whatsappRouter.get(
   '/chats/:chatId/messages',
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const { chatId } = req.params;
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
     const offset = parseInt(req.query.offset as string) || 0;
@@ -131,11 +131,6 @@ whatsappRouter.get(
         hasMore: offset + limit < total,
       },
     });
-  })
-);
-    }));
-
-    res.json({ messages: messageDTOs });
   })
 );
 
