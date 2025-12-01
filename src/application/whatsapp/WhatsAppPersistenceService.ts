@@ -7,6 +7,12 @@ export interface IncomingMessageResult {
   contactRow: whatsappRepo.ContactRow;
 }
 
+export interface OutgoingMessageResult {
+  messageRow: whatsappRepo.MessageRow;
+  chatRow: whatsappRepo.ChatRow;
+  contactRow: whatsappRepo.ContactRow;
+}
+
 export class WhatsAppPersistenceService {
   /**
    * Ensure the default session exists in the database
@@ -83,6 +89,56 @@ export class WhatsAppPersistenceService {
       body,
       sentAt: new Date(msg.timestamp * 1000),
       raw: msg,
+    });
+
+    // Update chat's last message timestamp
+    await whatsappRepo.updateChatLastMessage(chatRow.id);
+
+    return {
+      messageRow,
+      chatRow,
+      contactRow,
+    };
+  }
+
+  /**
+   * Handle an outgoing WhatsApp message (sent by us) and persist it to the database
+   */
+  async handleOutgoingMessage(
+    sessionKey: string,
+    toJid: string,
+    body: string,
+    waMessageId: string
+  ): Promise<OutgoingMessageResult> {
+    // Get the session from DB
+    const session = await whatsappRepo.ensureSessionForKey(sessionKey);
+
+    // Extract phone number from JID for contact name
+    let displayName: string | null = null;
+    const phoneMatch = toJid.match(/^(\d+)@/);
+    if (phoneMatch) {
+      displayName = `+${phoneMatch[1]}`;
+    } else {
+      displayName = toJid;
+    }
+
+    // Upsert contact
+    const contactRow = await whatsappRepo.upsertContactFromMessage(toJid, displayName);
+
+    // Ensure chat exists
+    const chatRow = await whatsappRepo.ensureChatForContact(session.id, contactRow.id);
+
+    // Insert message
+    const messageRow = await whatsappRepo.insertMessage({
+      sessionId: session.id,
+      chatId: chatRow.id,
+      direction: 'out',
+      waMessageId,
+      fromJid: null,
+      toJid,
+      body,
+      sentAt: new Date(),
+      raw: null,
     });
 
     // Update chat's last message timestamp

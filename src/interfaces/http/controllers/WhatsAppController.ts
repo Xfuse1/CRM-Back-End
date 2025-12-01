@@ -38,8 +38,15 @@ export class WhatsAppController {
         return;
       }
 
-      await this.whatsAppService.sendMessage(to, message);
-      res.json({ success: true, message: 'Message sent successfully' });
+      const result = await this.whatsAppService.sendMessage(to, message);
+      res.json({ 
+        success: true, 
+        message: 'Message sent successfully',
+        data: {
+          messageId: result.messageId,
+          chatId: result.chatId
+        }
+      });
     } catch (error) {
       console.error('[WhatsApp Controller] Error sending message:', error);
       res.status(500).json({ error: 'Failed to send message' });

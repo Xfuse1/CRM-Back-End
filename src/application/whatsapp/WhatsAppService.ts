@@ -27,8 +27,8 @@ export class WhatsAppService {
     return this.whatsAppManager.getQrCode(this.defaultSessionId);
   }
 
-  async sendMessage(to: string, message: string): Promise<void> {
-    await this.whatsAppManager.sendMessage(this.defaultSessionId, to, message);
+  async sendMessage(to: string, message: string): Promise<{ messageId: string; chatId: string }> {
+    return await this.whatsAppManager.sendMessage(this.defaultSessionId, to, message);
   }
 
   /**

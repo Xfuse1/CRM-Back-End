@@ -289,7 +289,7 @@ export class WhatsAppClientManager implements IWhatsAppClient {
     return sessionData?.qrCode ?? null;
   }
 
-  async sendMessage(sessionId: string, to: string, message: string): Promise<void> {
+  async sendMessage(sessionId: string, to: string, message: string): Promise<{ messageId: string; chatId: string }> {
     const sessionData = this.sessions.get(sessionId);
 
     if (!sessionData) {
@@ -304,10 +304,33 @@ export class WhatsAppClientManager implements IWhatsAppClient {
       // Ensure the 'to' number is in the correct format
       const formattedNumber = to.includes('@c.us') ? to : `${to}@c.us`;
       
-      await sessionData.client.sendMessage(formattedNumber, message);
+      const sentMessage = await sessionData.client.sendMessage(formattedNumber, message);
       console.log(`[WhatsApp] Message sent from session ${sessionId} to ${to}`);
 
-      // TODO: Save sent message to Supabase
+      // Save sent message to database
+      const result = await this.persistenceService.handleOutgoingMessage(
+        sessionData.sessionKey,
+        formattedNumber,
+        message,
+        sentMessage.id._serialized
+      );
+
+      // Emit message sent event
+      this.realtimeEmitter.emitToAll('message:sent', {
+        sessionId,
+        chatId: result.chatRow.id,
+        message: {
+          id: result.messageRow.id,
+          waMessageId: result.messageRow.wa_message_id,
+          to: result.messageRow.to_jid,
+          body: result.messageRow.body,
+          direction: result.messageRow.direction,
+          status: 'sent',
+          created_at: result.messageRow.created_at,
+        },
+      });
+
+      return { messageId: result.messageRow.id, chatId: result.chatRow.id };
     } catch (error) {
       console.error(`[WhatsApp] Failed to send message:`, error);
       throw error;

@@ -275,8 +275,8 @@ export async function insertMessage(params: {
   chatId: string;
   direction: string;
   waMessageId: string;
-  fromJid: string;
-  toJid: string;
+  fromJid: string | null;
+  toJid: string | null;
   body: string;
   sentAt: Date;
   raw: unknown;
@@ -296,6 +296,7 @@ export async function insertMessage(params: {
         body: params.body,
         sent_at: params.sentAt.toISOString(),
         raw_data: params.raw,
+        status: params.direction === 'out' ? 'sent' : null,
       },
       {
         onConflict: 'wa_message_id',
