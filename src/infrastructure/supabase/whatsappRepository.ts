@@ -282,47 +282,38 @@ export async function insertMessage(params: {
   sentAt: Date;
   raw: unknown;
 }): Promise<MessageRow> {
-  // Use upsert to handle duplicate wa_message_id (unique constraint)
+  // First check if message already exists
+  const { data: existing } = await supabaseAdmin
+    .from('messages')
+    .select('*')
+    .eq('wa_message_id', params.waMessageId)
+    .single();
+
+  if (existing) {
+    return existing as MessageRow;
+  }
+
+  // Insert new message
   const { data: message, error } = await supabaseAdmin
     .from('messages')
-    .upsert(
-      {
-        owner_id: config.demoOwnerId,
-        session_id: params.sessionId,
-        chat_id: params.chatId,
-        direction: params.direction,
-        wa_message_id: params.waMessageId,
-        from_jid: params.fromJid,
-        to_jid: params.toJid,
-        body: params.body,
-        sent_at: params.sentAt.toISOString(),
-        raw: params.raw,
-        status: params.direction === 'out' ? 'sent' : null,
-      },
-      {
-        onConflict: 'wa_message_id',
-        ignoreDuplicates: true, // Don't throw error if duplicate exists
-      }
-    )
+    .insert({
+      owner_id: config.demoOwnerId,
+      session_id: params.sessionId,
+      chat_id: params.chatId,
+      direction: params.direction,
+      wa_message_id: params.waMessageId,
+      from_jid: params.fromJid,
+      to_jid: params.toJid,
+      body: params.body,
+      sent_at: params.sentAt.toISOString(),
+      raw: params.raw,
+      status: params.direction === 'out' ? 'sent' : null,
+    })
     .select()
     .single();
 
-  if (error && error.code !== 'PGRST116') {
+  if (error) {
     throw new Error(`Failed to insert message: ${error.message}`);
-  }
-
-  // If duplicate was ignored, fetch the existing message
-  if (!message) {
-    const { data: existing } = await supabaseAdmin
-      .from('messages')
-      .select('*')
-      .eq('wa_message_id', params.waMessageId)
-      .single();
-    
-    if (existing) {
-      return existing as MessageRow;
-    }
-    throw new Error('Failed to insert or retrieve message');
   }
 
   return message as MessageRow;
