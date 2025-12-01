@@ -3,7 +3,7 @@ import { WhatsAppMessage } from './types';
 export interface IWhatsAppClient {
   initSession(sessionId: string): Promise<void>;
   getQrCode(sessionId: string): string | null;
-  sendMessage(sessionId: string, to: string, message: string): Promise<void>;
+  sendMessage(sessionId: string, to: string, message: string): Promise<{ messageId: string; chatId: string }>;
   isSessionConnected(sessionId: string): boolean;
   getSessionPhoneNumber(sessionId: string): string | undefined;
 }
