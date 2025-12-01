@@ -1,10 +1,11 @@
-import { Client, LocalAuth, Message, MessageMedia } from 'whatsapp-web.js';
+import { Client, RemoteAuth, Message, MessageMedia } from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
 import { IWhatsAppClient, IRealtimeEmitter } from '../../domain/whatsapp/interfaces';
 import { WhatsAppPersistenceService } from '../../application/whatsapp/WhatsAppPersistenceService';
 import { SessionManager } from '../../application/whatsapp/SessionManager';
 import { AIAgentService } from '../../application/ai/AIAgentService';
 import { getAISettings, getConversationContext, saveAIConversation } from '../supabase/whatsappRepository';
+import { SupabaseSessionStore } from './SupabaseSessionStore';
 import logger from '../../utils/logger';
 import fs from 'fs/promises';
 
@@ -42,9 +43,15 @@ export class WhatsAppClientManager implements IWhatsAppClient {
     // Ensure session exists in database
     const dbSession = await this.persistenceService.ensureDefaultSession(sessionId);
 
+    // Use RemoteAuth with Supabase store for persistent sessions
+    // This allows sessions to survive server restarts and deploys
+    const store = new SupabaseSessionStore();
+    
     const client = new Client({
-      authStrategy: new LocalAuth({
+      authStrategy: new RemoteAuth({
         clientId: sessionId,
+        store: store,
+        backupSyncIntervalMs: 300000, // Backup every 5 minutes
       }),
       puppeteer: {
         headless: true,
@@ -67,6 +74,11 @@ export class WhatsAppClientManager implements IWhatsAppClient {
   }
 
   private attachEventHandlers(sessionId: string, client: Client): void {
+    // RemoteAuth event: Session saved to remote store
+    client.on('remote_session_saved', () => {
+      console.log(`[WhatsApp] Session ${sessionId} saved to Supabase (RemoteAuth)`);
+    });
+
     client.on('qr', (qr: string) => {
       console.log(`[WhatsApp] QR Code generated for session: ${sessionId}`);
       qrcode.generate(qr, { small: true });

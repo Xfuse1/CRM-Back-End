@@ -12,6 +12,7 @@ export interface WhatsAppSessionRow {
   last_connected_at: string | null;
   meta: unknown;
   session_data?: any;
+  auth_credentials?: string | null;  // WhatsApp session credentials (ZIP base64)
   expires_at?: string | null;
   is_active?: boolean;
   reconnect_attempts?: number;

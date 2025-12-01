@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 /**
  * General API rate limiter
@@ -39,7 +39,7 @@ export const messageLimiter = rateLimit({
   validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
     // Use user ID if authenticated, otherwise IP
-    return (req as any).user?.id || req.ip || 'unknown';
+    return (req as any).user?.id || ipKeyGenerator((req as any).ip || '') || 'unknown';
   },
 });
 
@@ -68,6 +68,6 @@ export const uploadLimiter = rateLimit({
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
-    return (req as any).user?.id || req.ip || 'unknown';
+    return (req as any).user?.id || ipKeyGenerator((req as any).ip || '') || 'unknown';
   },
 });
