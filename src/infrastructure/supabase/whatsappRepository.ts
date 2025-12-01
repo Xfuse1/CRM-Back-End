@@ -296,7 +296,7 @@ export async function insertMessage(params: {
         to_jid: params.toJid,
         body: params.body,
         sent_at: params.sentAt.toISOString(),
-        raw_data: params.raw,
+        raw: params.raw,
         status: params.direction === 'out' ? 'sent' : null,
       },
       {
