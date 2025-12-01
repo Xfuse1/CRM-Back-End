@@ -26,13 +26,35 @@ export function createApp(): Application {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // CORS middleware
+  // CORS middleware - allow multiple origins
+  const allowedOrigins = [
+    config.clientOrigin,
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ].filter(Boolean);
+
   app.use(
     cors({
-      origin: config.clientOrigin,
+      origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) {
+          return callback(null, true);
+        }
+        
+        // Check if origin is in allowed list
+        if (allowedOrigins.some(allowed => origin.startsWith(allowed) || allowed.includes(origin))) {
+          return callback(null, true);
+        }
+        
+        // Log blocked origins for debugging
+        console.warn(`[CORS] Blocked request from origin: ${origin}`);
+        console.warn(`[CORS] Allowed origins: ${allowedOrigins.join(', ')}`);
+        
+        callback(new Error('Not allowed by CORS'));
+      },
       credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Idempotency-Key'],
     })
   );
 
