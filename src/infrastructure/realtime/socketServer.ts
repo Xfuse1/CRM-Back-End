@@ -7,12 +7,39 @@ export class RealtimeServer implements IRealtimeEmitter {
   private io: SocketIOServer;
 
   constructor(httpServer: HttpServer) {
+    // Configure allowed origins for Socket.io
+    const allowedOrigins = [
+      config.clientOrigin,
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://whatsapp-crm-frontend.vercel.app',
+    ].filter(Boolean);
+
+    console.log('[Socket.io] Allowed origins:', allowedOrigins);
+
     this.io = new SocketIOServer(httpServer, {
       cors: {
-        origin: config.clientOrigin,
+        origin: (origin, callback) => {
+          // Allow requests with no origin (like mobile apps)
+          if (!origin) {
+            return callback(null, true);
+          }
+          // Check if origin is allowed
+          if (allowedOrigins.some(allowed => origin.startsWith(allowed) || allowed.includes(origin))) {
+            return callback(null, true);
+          }
+          console.warn(`[Socket.io] Blocked connection from: ${origin}`);
+          callback(new Error('Not allowed by CORS'));
+        },
         methods: ['GET', 'POST'],
         credentials: true,
       },
+      // Important for Render/Vercel deployment
+      transports: ['websocket', 'polling'],
+      pingTimeout: 60000,
+      pingInterval: 25000,
+      upgradeTimeout: 30000,
+      allowUpgrades: true,
     });
 
     this.setupEventHandlers();
