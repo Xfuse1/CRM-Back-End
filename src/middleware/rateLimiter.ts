@@ -2,14 +2,15 @@ import rateLimit from 'express-rate-limit';
 
 /**
  * General API rate limiter
- * 100 requests per 15 minutes per IP
+ * 500 requests per 15 minutes per IP (increased for real-time apps)
  */
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 500, // Limit each IP to 500 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  validate: { xForwardedForHeader: false },
 });
 
 /**
@@ -22,6 +23,7 @@ export const authLimiter = rateLimit({
   message: 'Too many authentication attempts, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 
 /**
@@ -34,10 +36,24 @@ export const messageLimiter = rateLimit({
   message: 'Too many messages sent, please wait before sending more.',
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
     // Use user ID if authenticated, otherwise IP
     return (req as any).user?.id || req.ip || 'unknown';
   },
+});
+
+/**
+ * WhatsApp status/QR polling rate limiter
+ * More lenient for real-time updates (60 per minute)
+ */
+export const whatsappPollingLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // Limit to 60 requests per minute (1 per second average)
+  message: 'Too many status checks, please slow down.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 
 /**
@@ -50,6 +66,7 @@ export const uploadLimiter = rateLimit({
   message: 'Too many file uploads, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   keyGenerator: (req) => {
     return (req as any).user?.id || req.ip || 'unknown';
   },

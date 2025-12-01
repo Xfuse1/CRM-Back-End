@@ -3,7 +3,7 @@ import { WhatsAppController } from '../controllers/WhatsAppController';
 import { WhatsAppPersistenceService } from '../../../application/whatsapp/WhatsAppPersistenceService';
 import { authenticateToken } from '../../../middleware/auth';
 import { validate, schemas } from '../../../middleware/validation';
-import { messageLimiter } from '../../../middleware/rateLimiter';
+import { messageLimiter, whatsappPollingLimiter } from '../../../middleware/rateLimiter';
 import { asyncHandler } from '../../../middleware/errorHandler';
 import { idempotencyMiddleware, cacheIdempotentResponse } from '../../../middleware/idempotency';
 
@@ -29,7 +29,7 @@ export const whatsappRouter = Router();
  * GET /api/whatsapp/status
  * Returns the connection status of the default WhatsApp session
  */
-whatsappRouter.get('/status', (req, res) => {
+whatsappRouter.get('/status', whatsappPollingLimiter, (req, res) => {
   whatsAppController.getStatus(req, res);
 });
 
@@ -37,7 +37,7 @@ whatsappRouter.get('/status', (req, res) => {
  * GET /api/whatsapp/qr
  * Returns the QR code for scanning (if not yet connected)
  */
-whatsappRouter.get('/qr', (req, res) => {
+whatsappRouter.get('/qr', whatsappPollingLimiter, (req, res) => {
   whatsAppController.getQrCode(req, res);
 });
 

@@ -66,8 +66,9 @@ async function bootstrap() {
     await storageService.ensureBucketExists();
 
     // Start HTTP server
-    httpServer.listen(config.port, () => {
-      console.log(`[Server] 🚀 Server is running on port ${config.port}`);
+    const HOST = process.env.HOST || '0.0.0.0';
+    httpServer.listen(config.port, HOST, () => {
+      console.log(`[Server] 🚀 Server is running on ${HOST}:${config.port}`);
       console.log(`[Server] 📱 WhatsApp Web integration active`);
       console.log(`[Server] 🔌 Socket.io server ready`);
       console.log(`[Server] 🌐 CORS enabled for: ${config.clientOrigin}`);

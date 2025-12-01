@@ -46,16 +46,61 @@ export class ApiRequestCleanupService {
     try {
       logInfo('Running API request cleanup task...');
       
+      // Try RPC function first, fallback to direct delete
       const { data, error } = await supabaseAdmin.rpc('cleanup_expired_api_requests');
 
       if (error) {
+        // If RPC doesn't exist, try direct delete
+        if (error.code === 'PGRST202' || error.message?.includes('function') || error.message?.includes('does not exist')) {
+          logInfo('RPC function not found, using direct delete...');
+          await this.runDirectCleanup();
+          return;
+        }
         throw error;
       }
 
       const cleanedCount = data || 0;
       logInfo(`API request cleanup complete: ${cleanedCount} expired requests removed`);
     } catch (error) {
+      // Silently handle if table doesn't exist (not all deployments use idempotency)
+      const err = error as Error & { code?: string };
+      if (err.code === '42P01' || err.message?.includes('does not exist')) {
+        logInfo('API requests table not found - skipping cleanup (idempotency not configured)');
+        return;
+      }
       logError('API request cleanup failed', error as Error);
+    }
+  }
+
+  /**
+   * Direct cleanup without RPC function
+   */
+  private async runDirectCleanup(): Promise<void> {
+    try {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      
+      const { error, count } = await supabaseAdmin
+        .from('api_requests')
+        .delete()
+        .lt('created_at', twentyFourHoursAgo);
+
+      if (error) {
+        // Table might not exist
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          logInfo('API requests table not found - skipping cleanup');
+          return;
+        }
+        throw error;
+      }
+
+      logInfo(`API request cleanup complete: ${count || 0} expired requests removed`);
+    } catch (error) {
+      const err = error as Error & { code?: string };
+      if (err.code === '42P01' || err.message?.includes('does not exist')) {
+        logInfo('API requests table not found - skipping cleanup');
+        return;
+      }
+      logError('Direct API request cleanup failed', error as Error);
     }
   }
 }
