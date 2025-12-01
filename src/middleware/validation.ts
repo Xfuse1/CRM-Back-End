@@ -38,11 +38,11 @@ export const schemas = {
   sendMessage: Joi.object({
     to: Joi.string()
       .required()
-      .pattern(/^[\d@.]+$/)
+      .pattern(/^[\d@.\w-]+$/)
       .min(5)
-      .max(50)
+      .max(100)
       .messages({
-        'string.pattern.base': 'Invalid phone number format',
+        'string.pattern.base': 'Invalid phone number or JID format',
         'string.empty': 'Recipient phone number is required',
       }),
     message: Joi.string().required().min(1).max(10000).messages({
