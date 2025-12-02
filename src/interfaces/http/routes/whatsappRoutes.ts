@@ -155,6 +155,64 @@ whatsappRouter.get(
 // POST /api/whatsapp/chats/:chatId/read - Mark chat as read
 
 /**
+ * POST /api/whatsapp/contacts
+ * Create a new contact and start a chat with them
+ * Body: { phoneNumber: string, displayName?: string }
+ */
+whatsappRouter.post(
+  '/contacts',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { phoneNumber, displayName } = req.body;
+    
+    if (!phoneNumber) {
+      res.status(400).json({ error: 'Phone number is required' });
+      return;
+    }
+    
+    // Clean phone number - remove spaces, dashes, and leading +
+    const cleanPhone = phoneNumber.replace(/[\s\-\+]/g, '');
+    
+    // Validate phone number format (should be digits only)
+    if (!/^\d{10,15}$/.test(cleanPhone)) {
+      res.status(400).json({ error: 'Invalid phone number format. Use 10-15 digits.' });
+      return;
+    }
+    
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+      
+      // Create contact and chat using the session key format
+      const sessionKey = `user_${userId}`;
+      const jid = `${cleanPhone}@s.whatsapp.net`;
+      const name = displayName || `+${cleanPhone}`;
+      
+      const result = await persistenceService.getOrCreateContact(sessionKey, jid, name);
+      
+      res.status(201).json({
+        success: true,
+        contact: {
+          id: result.contact.id,
+          waId: result.contact.waId,
+          displayName: result.contact.displayName,
+        },
+        chat: {
+          id: result.chat.id,
+          contactId: result.chat.contactId,
+          contactJid: result.contact.waId,
+        },
+      });
+    } catch (error) {
+      console.error('[WhatsApp] Failed to create contact:', error);
+      res.status(500).json({ error: 'Failed to create contact' });
+    }
+  })
+);
+
+/**
  * POST /api/whatsapp/logout
  * Logout from WhatsApp and generate a new QR code
  */
