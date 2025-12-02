@@ -188,6 +188,7 @@ export async function listChatsWithLastMessage(): Promise<any[]> {
   return chats.map((chat: any) => ({
     ...chat,
     title: chat.contact?.displayName || chat.title || null,
+    contactJid: chat.contact?.waId || null, // Include contact JID for sending messages
   }));
 }
 
