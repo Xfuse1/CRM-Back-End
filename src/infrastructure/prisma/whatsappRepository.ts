@@ -10,12 +10,15 @@ import logger from '../../utils/logger';
 // Owner ID Context
 // ============================================
 
-// Current owner ID - MUST be set per-request from authenticated user
+// Current owner ID - set per-request from authenticated user
 let currentOwnerId: string | null = null;
+
+// System owner ID for background tasks (like session initialization)
+const SYSTEM_OWNER_ID = 'system';
 
 /**
  * Set the current owner ID for all subsequent repository operations
- * MUST be called at the beginning of each request with the authenticated user's ID
+ * Should be called at the beginning of each request with the authenticated user's ID
  */
 export function setCurrentOwnerId(ownerId: string): void {
   currentOwnerId = ownerId;
@@ -23,26 +26,32 @@ export function setCurrentOwnerId(ownerId: string): void {
 
 /**
  * Get the current owner ID
- * Throws error if not set - authentication is required
+ * Returns system owner if not set (for background operations)
  */
 export function getOwnerId(): string {
-  if (!currentOwnerId) {
-    throw new Error('Owner ID not set. User must be authenticated.');
-  }
-  return currentOwnerId;
+  return currentOwnerId || SYSTEM_OWNER_ID;
+}
+
+/**
+ * Check if we have an authenticated user context
+ */
+export function hasAuthenticatedOwner(): boolean {
+  return currentOwnerId !== null && currentOwnerId !== SYSTEM_OWNER_ID;
 }
 
 // ============================================
 // Session Management
 // ============================================
 
-export async function ensureSessionForKey(sessionKey: string, retries = 3): Promise<any> {
+export async function ensureSessionForKey(sessionKey: string, ownerId?: string, retries = 3): Promise<any> {
+  const ownerIdToUse = ownerId || getOwnerId();
+  
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       // Try to find existing session
       let session = await prisma.whatsappWebSession.findFirst({
         where: {
-          ownerId: getOwnerId(),
+          ownerId: ownerIdToUse,
           sessionKey: sessionKey,
         },
       });
@@ -54,7 +63,7 @@ export async function ensureSessionForKey(sessionKey: string, retries = 3): Prom
       // Create new session
       session = await prisma.whatsappWebSession.create({
         data: {
-          ownerId: getOwnerId(),
+          ownerId: ownerIdToUse,
           sessionKey: sessionKey,
           status: 'disconnected',
         },
