@@ -1,13 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../../config/env';
 
-// TODO: Define database types based on Supabase schema
-// TODO: Create tables for:
-//   - whatsapp_sessions (id, session_id, phone_number, is_connected, created_at, updated_at)
-//   - whatsapp_chats (id, session_id, chat_id, name, is_group, unread_count, last_message_at)
-//   - whatsapp_messages (id, session_id, chat_id, from, to, body, timestamp, is_from_me, has_media)
-//   - users (for multi-user support)
-//   - ai_agent_configs (for auto-reply configuration)
+// Log Supabase connection info (without sensitive data)
+console.log(`[Supabase] Initializing client for: ${config.supabaseUrl}`);
+console.log(`[Supabase] Service role key present: ${config.supabaseServiceRoleKey ? 'Yes' : 'No'}`);
 
 export const supabaseAdmin: SupabaseClient = createClient(
   config.supabaseUrl,
@@ -17,5 +13,22 @@ export const supabaseAdmin: SupabaseClient = createClient(
       autoRefreshToken: false,
       persistSession: false,
     },
+    db: {
+      schema: 'public',
+    },
   }
 );
+
+// Test connection on startup
+(async () => {
+  try {
+    const { error } = await supabaseAdmin.from('whatsapp_sessions').select('id').limit(1);
+    if (error) {
+      console.error(`[Supabase] Connection test failed: ${error.message}`);
+    } else {
+      console.log('[Supabase] Connection test successful');
+    }
+  } catch (e) {
+    console.error('[Supabase] Connection test error:', e);
+  }
+})();

@@ -89,40 +89,53 @@ export interface AIConversationRow {
 
 /**
  * Ensure a WhatsApp session exists for the given session key
+ * With retry logic for initial database connection
  */
-export async function ensureSessionForKey(sessionKey: string): Promise<WhatsAppSessionRow> {
-  const { data: existing, error: selectError } = await supabaseAdmin
-    .from('whatsapp_sessions')
-    .select('*')
-    .eq('owner_id', config.demoOwnerId)
-    .eq('session_key', sessionKey)
-    .single();
+export async function ensureSessionForKey(sessionKey: string, retries = 3): Promise<WhatsAppSessionRow> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const { data: existing, error: selectError } = await supabaseAdmin
+        .from('whatsapp_sessions')
+        .select('*')
+        .eq('owner_id', config.demoOwnerId)
+        .eq('session_key', sessionKey)
+        .single();
 
-  if (selectError && selectError.code !== 'PGRST116') {
-    // PGRST116 = not found, which is expected
-    throw new Error(`Failed to check session: ${selectError.message}`);
+      if (selectError && selectError.code !== 'PGRST116') {
+        // PGRST116 = not found, which is expected
+        throw new Error(`Failed to check session: ${selectError.message}`);
+      }
+
+      if (existing) {
+        return existing as WhatsAppSessionRow;
+      }
+
+      // Insert new session
+      const { data: newSession, error: insertError } = await supabaseAdmin
+        .from('whatsapp_sessions')
+        .insert({
+          owner_id: config.demoOwnerId,
+          session_key: sessionKey,
+          status: 'disconnected',
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        throw new Error(`Failed to create session: ${insertError.message}`);
+      }
+
+      return newSession as WhatsAppSessionRow;
+    } catch (error) {
+      if (attempt < retries) {
+        console.log(`[Supabase] Connection attempt ${attempt} failed, retrying in ${attempt * 2}s...`);
+        await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+      } else {
+        throw error;
+      }
+    }
   }
-
-  if (existing) {
-    return existing as WhatsAppSessionRow;
-  }
-
-  // Insert new session
-  const { data: newSession, error: insertError } = await supabaseAdmin
-    .from('whatsapp_sessions')
-    .insert({
-      owner_id: config.demoOwnerId,
-      session_key: sessionKey,
-      status: 'disconnected',
-    })
-    .select()
-    .single();
-
-  if (insertError) {
-    throw new Error(`Failed to create session: ${insertError.message}`);
-  }
-
-  return newSession as WhatsAppSessionRow;
+  throw new Error('Failed to connect to database after retries');
 }
 
 /**
