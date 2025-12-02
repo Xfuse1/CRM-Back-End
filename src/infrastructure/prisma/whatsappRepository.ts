@@ -168,25 +168,33 @@ export async function ensureChatForContact(
   sessionId: string,
   contactId: string
 ): Promise<any> {
-  const waChatId = `${contactId}_${sessionId}`;
-
-  // Try to find existing chat
+  const ownerId = getOwnerId();
+  
+  // Try to find existing chat for this contact (regardless of session)
+  // This ensures we don't create duplicate chats when session changes
   let chat = await prisma.chat.findFirst({
     where: {
-      ownerId: getOwnerId(),
-      sessionId: sessionId,
+      ownerId: ownerId,
       contactId: contactId,
     },
   });
 
   if (chat) {
+    // Update sessionId if it changed (user reconnected with new session)
+    if (chat.sessionId !== sessionId) {
+      chat = await prisma.chat.update({
+        where: { id: chat.id },
+        data: { sessionId: sessionId },
+      });
+    }
     return chat;
   }
 
   // Create new chat
+  const waChatId = `${contactId}_${sessionId}`;
   chat = await prisma.chat.create({
     data: {
-      ownerId: getOwnerId(),
+      ownerId: ownerId,
       sessionId: sessionId,
       contactId: contactId,
       waChatId: waChatId,
