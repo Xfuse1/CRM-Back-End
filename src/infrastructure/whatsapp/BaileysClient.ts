@@ -335,6 +335,12 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
       this.setOwnerContext(sessionId);
 
       for (const message of m.messages) {
+        // Skip group messages - only handle individual chats
+        const remoteJidRaw = message.key.remoteJid || '';
+        if (remoteJidRaw.includes('@g.us')) {
+          continue;
+        }
+
         // Skip non-text messages for now
         if (!message.message?.conversation && !message.message?.extendedTextMessage?.text) {
           continue;
