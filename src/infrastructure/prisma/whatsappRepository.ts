@@ -358,3 +358,47 @@ export async function getActiveSessionsForOwner(ownerId: string): Promise<any[]>
     orderBy: { lastConnectedAt: 'desc' },
   });
 }
+
+// ============================================
+// AI Stats
+// ============================================
+
+export async function getAIStats(ownerId: string): Promise<{
+  totalConversations: number;
+  successfulResponses: number;
+  avgResponseTimeMs: number;
+} | null> {
+  try {
+    // Count total conversations
+    const totalConversations = await prisma.aiConversation.count({
+      where: { ownerId },
+    });
+
+    // Count successful responses (where aiResponse is not null)
+    const successfulResponses = await prisma.aiConversation.count({
+      where: { 
+        ownerId,
+        aiResponse: { not: null },
+      },
+    });
+
+    // Calculate average response time
+    const avgResult = await prisma.aiConversation.aggregate({
+      where: { 
+        ownerId,
+        responseTimeMs: { not: null },
+      },
+      _avg: {
+        responseTimeMs: true,
+      },
+    });
+
+    return {
+      totalConversations,
+      successfulResponses,
+      avgResponseTimeMs: Math.round(avgResult._avg.responseTimeMs || 0),
+    };
+  } catch (error) {
+    return null;
+  }
+}
