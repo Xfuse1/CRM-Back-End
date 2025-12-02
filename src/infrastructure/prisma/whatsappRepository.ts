@@ -287,7 +287,7 @@ export async function listMessagesForChat(
     beforeTimestamp?: string;
   }
 ): Promise<any[]> {
-  const limit = options?.limit || 50;
+  const limit = options?.limit || 100; // Increase default limit
   const offset = options?.offset || 0;
 
   const where: any = {
@@ -299,9 +299,10 @@ export async function listMessagesForChat(
     where.createdAt = { lt: new Date(options.beforeTimestamp) };
   }
 
+  // Get messages ordered by date ascending (oldest first)
   return prisma.message.findMany({
     where,
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: 'asc' },
     skip: offset,
     take: limit,
   });
