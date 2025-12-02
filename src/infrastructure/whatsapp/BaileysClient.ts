@@ -323,7 +323,7 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
     // Credentials updated - save to database
     socket.ev.on('creds.update', saveCreds);
 
-    // Incoming messages
+    // Incoming messages (both sent and received - like WhatsApp Web)
     socket.ev.on('messages.upsert', async (m) => {
       const sessionData = this.sessions.get(sessionId);
       if (!sessionData) {
@@ -340,37 +340,41 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
           continue;
         }
 
-        // Skip messages from self
-        if (message.key.fromMe) {
-          continue;
-        }
-
+        // Process ALL messages (both sent and received) - like WhatsApp Web
+        const isFromMe = message.key.fromMe || false;
+        
         const body =
           message.message?.conversation ||
           message.message?.extendedTextMessage?.text ||
           '';
 
-        const from = message.key.remoteJid || '';
+        const remoteJid = message.key.remoteJid || '';
+        const myJid = socket.user?.id || '';
+        
+        // Determine from/to based on direction
+        const from = isFromMe ? myJid : remoteJid;
+        const to = isFromMe ? remoteJid : myJid;
+        
         const timestamp = message.messageTimestamp
           ? new Date(Number(message.messageTimestamp) * 1000).toISOString()
           : new Date().toISOString();
 
-        logger.info(`[Baileys] Message received in session ${sessionId}: ${body.substring(0, 50)}...`);
-        logger.info(`[Baileys] Message pushName: ${message.pushName || 'NOT SET'}`);
+        logger.info(`[Baileys] Message ${isFromMe ? 'SENT' : 'RECEIVED'} in session ${sessionId}: ${body.substring(0, 50)}...`);
+        logger.info(`[Baileys] Remote: ${remoteJid}, pushName: ${message.pushName || 'NOT SET'}`);
 
         try {
           // Create a compatible message object for persistence service
           const messageForPersistence = {
             id: { _serialized: message.key.id || '' },
             from,
-            to: socket.user?.id || '',
+            to,
             body,
             timestamp: Number(message.messageTimestamp) || Date.now() / 1000,
-            fromMe: false,
+            fromMe: isFromMe,
             getContact: async () => ({
               name: message.pushName || null,
               pushname: message.pushName || null,
-              number: from.split('@')[0],
+              number: remoteJid.split('@')[0],
             }),
           };
 
@@ -401,8 +405,10 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
             },
           });
 
-          // AI Agent auto-reply
-          await this.handleAIAutoReply(socket, message, result.chatRow.id, sessionData.sessionKey);
+          // AI Agent auto-reply - only for incoming messages (not from me)
+          if (!isFromMe) {
+            await this.handleAIAutoReply(socket, message, result.chatRow.id, sessionData.sessionKey);
+          }
         } catch (error) {
           logger.error('[Baileys] Failed to persist message:', error);
         }
@@ -476,7 +482,7 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
           if (fromMe) {
             await this.persistenceService.handleOutgoingMessage(
               sessionData.sessionKey,
-              from.replace('@s.whatsapp.net', '@c.us'),
+              from, // Keep original JID - repository handles normalization
               body,
               msg.key?.id || ''
             );
