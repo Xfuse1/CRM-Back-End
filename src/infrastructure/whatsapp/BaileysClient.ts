@@ -435,6 +435,36 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
       logger.info(`[Baileys]   - Messages: ${messages.length}`);
       logger.info(`[Baileys]   - Is Latest: ${isLatest}`);
 
+      // Build a map of JID -> contact name from chats and contacts
+      const contactNameMap = new Map<string, string>();
+      
+      // First, get names from contacts list
+      for (const contact of contacts) {
+        const jid = contact.id;
+        if (!jid || jid.includes('@g.us')) continue;
+        const name = contact.name || contact.notify || null;
+        if (name) {
+          contactNameMap.set(jid, name);
+          // Also map phone number without suffix
+          const phone = jid.split('@')[0];
+          contactNameMap.set(phone, name);
+        }
+      }
+      
+      // Then, get names from chats (may override contacts)
+      for (const chat of chats) {
+        const jid = chat.id;
+        if (!jid || jid.includes('@g.us')) continue;
+        const name = (chat as any).name || (chat as any).notify || null;
+        if (name) {
+          contactNameMap.set(jid, name);
+          const phone = jid.split('@')[0];
+          contactNameMap.set(phone, name);
+        }
+      }
+
+      logger.info(`[Baileys] Built contact name map with ${contactNameMap.size} entries`);
+
       // Process and save chats
       for (const chat of chats) {
         try {
@@ -442,7 +472,7 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
           if (!jid || jid.includes('@g.us')) continue; // Skip groups for now
 
           const phoneNumber = jid.split('@')[0];
-          const contactName = (chat as any).name || (chat as any).notify || phoneNumber;
+          const contactName = contactNameMap.get(jid) || contactNameMap.get(phoneNumber) || phoneNumber;
 
           // Get or create contact and chat in database
           await this.persistenceService.getOrCreateContact(
@@ -470,6 +500,10 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
 
           if (!from || from.includes('@g.us')) continue; // Skip groups
 
+          // Get contact name from map or pushName
+          const phoneNumber = from.split('@')[0];
+          const contactName = msg.pushName || contactNameMap.get(from) || contactNameMap.get(phoneNumber) || null;
+
           // Create message for persistence
           const messageForPersistence = {
             id: { _serialized: msg.key?.id || '' },
@@ -479,9 +513,9 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
             timestamp: Number(msg.messageTimestamp) || Date.now() / 1000,
             fromMe,
             getContact: async () => ({
-              name: msg.pushName || null,
-              pushname: msg.pushName || null,
-              number: from.split('@')[0],
+              name: contactName,
+              pushname: contactName,
+              number: phoneNumber,
             }),
           };
 
