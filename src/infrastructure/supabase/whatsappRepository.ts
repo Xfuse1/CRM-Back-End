@@ -46,6 +46,11 @@ export interface ChatRow {
   lastMessageAt: Date | null;
   unreadCount: number;
   createdAt: Date;
+  contactJid?: string | null; // WhatsApp JID from contact.waId
+  contact?: {
+    displayName: string | null;
+    waId: string | null;
+  };
 }
 
 export interface MessageRow {

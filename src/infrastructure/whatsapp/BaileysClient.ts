@@ -329,6 +329,7 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
           : new Date().toISOString();
 
         logger.info(`[Baileys] Message received in session ${sessionId}: ${body.substring(0, 50)}...`);
+        logger.info(`[Baileys] Message pushName: ${message.pushName || 'NOT SET'}`);
 
         try {
           // Create a compatible message object for persistence service

@@ -84,15 +84,17 @@ whatsappRouter.get(
     const chats = await persistenceService.getChats();
 
     // Map to DTOs - Prisma returns camelCase
+    // Include contactJid for sending messages and title for display
     const chatDTOs = chats.map((chat) => ({
       id: chat.id,
       sessionId: chat.sessionId,
       contactId: chat.contactId,
       type: chat.type,
-      title: chat.title,
+      title: chat.title, // Already processed in repository with displayName fallback
       lastMessageAt: chat.lastMessageAt,
       unreadCount: chat.unreadCount || 0,
       createdAt: chat.createdAt,
+      contactJid: chat.contactJid || null, // Include WhatsApp JID for sending messages
     }));
 
     res.json({ chats: chatDTOs });
