@@ -79,6 +79,22 @@ export class WhatsAppPersistenceService {
     const chatRow = await whatsappRepo.ensureChatForContact(session.id, contactRow.id);
 
     // Insert message
+    // Sanitize raw data - remove functions that can't be serialized
+    let rawData: any = null;
+    try {
+      rawData = {
+        id: msg.id,
+        from: msg.from,
+        to: msg.to,
+        body: msg.body,
+        timestamp: msg.timestamp,
+        fromMe: msg.fromMe,
+      };
+    } catch (e) {
+      // If serialization fails, just save null
+      rawData = null;
+    }
+
     const messageRow = await whatsappRepo.insertMessage({
       sessionId: session.id,
       chatId: chatRow.id,
@@ -88,7 +104,7 @@ export class WhatsAppPersistenceService {
       toJid,
       body,
       sentAt: new Date(msg.timestamp * 1000),
-      raw: msg,
+      raw: rawData,
     });
 
     // Update chat's last message timestamp
