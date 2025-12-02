@@ -9,6 +9,7 @@ import aiRoutes from './routes/aiRoutes';
 import { apiLimiter } from '../../middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from '../../middleware/errorHandler';
 import { logHttp } from '../../utils/logger';
+import { prisma } from '../../infrastructure/prisma/client';
 
 export function createApp(): Application {
   const app = express();
@@ -62,11 +63,21 @@ export function createApp(): Application {
   app.use('/api', apiLimiter);
 
   // Health check (no rate limiting)
-  app.get('/health', (_req, res) => {
+  app.get('/health', async (_req, res) => {
+    let dbStatus = 'unknown';
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      dbStatus = 'connected';
+    } catch (error) {
+      dbStatus = 'disconnected';
+      console.error('[Health] Database check failed:', error);
+    }
+    
     res.json({ 
-      status: 'ok', 
+      status: dbStatus === 'connected' ? 'ok' : 'degraded', 
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
+      database: dbStatus,
     });
   });
 
