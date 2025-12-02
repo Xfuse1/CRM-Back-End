@@ -58,9 +58,8 @@ async function bootstrap() {
     setWhatsAppController(whatsAppController);
     setWhatsAppPersistenceService(persistenceService);
 
-    // Initialize default WhatsApp session
-    console.log('[Server] Initializing default WhatsApp session...');
-    await whatsAppService.initializeDefaultSession();
+    // Sessions are now initialized per-user when they request QR code
+    console.log('[Server] WhatsApp sessions will be initialized per-user on demand');
 
     // Start session cleanup service
     console.log('[Server] Starting session cleanup service...');

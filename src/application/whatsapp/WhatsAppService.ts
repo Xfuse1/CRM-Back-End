@@ -3,77 +3,102 @@ import { SessionStatus } from '../../domain/whatsapp/types';
 
 export class WhatsAppService {
   private whatsAppManager: IWhatsAppClient;
-  private defaultSessionId = 'default';
 
   constructor(whatsAppManager: IWhatsAppClient) {
     this.whatsAppManager = whatsAppManager;
   }
 
-  async initializeDefaultSession(): Promise<void> {
-    await this.whatsAppManager.initSession(this.defaultSessionId);
+  /**
+   * Get session ID for a user (uses owner ID as session ID)
+   */
+  private getSessionId(ownerId: string): string {
+    return `user_${ownerId}`;
   }
 
-  getStatus(): SessionStatus {
+  /**
+   * Initialize session for a specific user
+   */
+  async initializeUserSession(ownerId: string): Promise<void> {
+    const sessionId = this.getSessionId(ownerId);
+    await this.whatsAppManager.initSession(sessionId);
+  }
+
+  /**
+   * Get status for a specific user's session
+   */
+  getStatus(ownerId: string): SessionStatus {
+    const sessionId = this.getSessionId(ownerId);
     return {
-      sessionId: this.defaultSessionId,
-      isConnected: this.whatsAppManager.isSessionConnected(this.defaultSessionId),
-      phoneNumber: this.whatsAppManager.getSessionPhoneNumber(this.defaultSessionId),
+      sessionId,
+      isConnected: this.whatsAppManager.isSessionConnected(sessionId),
+      phoneNumber: this.whatsAppManager.getSessionPhoneNumber(sessionId),
     };
   }
 
-  getQrCode(): string | null {
-    return this.whatsAppManager.getQrCode(this.defaultSessionId);
+  /**
+   * Get QR code for a specific user's session
+   * Automatically initializes session if not exists
+   */
+  async getQrCode(ownerId: string): Promise<string | null> {
+    const sessionId = this.getSessionId(ownerId);
+    
+    // Check if session exists, if not initialize it
+    if (!this.whatsAppManager.isSessionConnected(sessionId) && !this.whatsAppManager.getQrCode(sessionId)) {
+      console.log(`[WhatsApp Service] Initializing session for user: ${ownerId}`);
+      await this.whatsAppManager.initSession(sessionId);
+      // Wait a bit for QR to be generated
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    return this.whatsAppManager.getQrCode(sessionId);
   }
 
-  async sendMessage(to: string, message: string): Promise<{ messageId: string; chatId: string }> {
-    return await this.whatsAppManager.sendMessage(this.defaultSessionId, to, message);
+  /**
+   * Send message from a specific user's session
+   */
+  async sendMessage(ownerId: string, to: string, message: string): Promise<{ messageId: string; chatId: string }> {
+    const sessionId = this.getSessionId(ownerId);
+    return await this.whatsAppManager.sendMessage(sessionId, to, message);
   }
 
   /**
    * Send media message (image, video, document, audio)
-   * @param to - Phone number
-   * @param mediaPath - Local file path or URL
-   * @param caption - Optional caption
    */
-  async sendMediaMessage(to: string, mediaPath: string, caption?: string): Promise<void> {
+  async sendMediaMessage(ownerId: string, to: string, mediaPath: string, caption?: string): Promise<void> {
+    const sessionId = this.getSessionId(ownerId);
     if (this.whatsAppManager.sendMediaMessage) {
-      await this.whatsAppManager.sendMediaMessage(this.defaultSessionId, to, mediaPath, caption);
+      await this.whatsAppManager.sendMediaMessage(sessionId, to, mediaPath, caption);
     } else {
       throw new Error('Media messages not supported with current WhatsApp client');
     }
   }
 
   /**
-   * Logout from WhatsApp session
-   * This will disconnect and clear the session, then generate a new QR code
+   * Logout from a user's WhatsApp session
    */
-  async logout(): Promise<void> {
+  async logout(ownerId: string): Promise<void> {
+    const sessionId = this.getSessionId(ownerId);
     if (this.whatsAppManager.logout) {
-      await this.whatsAppManager.logout(this.defaultSessionId);
+      await this.whatsAppManager.logout(sessionId);
     } else {
       throw new Error('Logout not supported with current WhatsApp client');
     }
   }
 
   /**
-   * Restart the WhatsApp session to generate a new QR code
+   * Restart a user's WhatsApp session to generate a new QR code
    */
-  async restartSession(): Promise<void> {
-    // Delete the current session and reinitialize
+  async restartSession(ownerId: string): Promise<void> {
+    const sessionId = this.getSessionId(ownerId);
     if (this.whatsAppManager.logout) {
       try {
-        await this.whatsAppManager.logout(this.defaultSessionId);
+        await this.whatsAppManager.logout(sessionId);
       } catch (error) {
         console.log('[WhatsApp Service] Logout failed, forcing reinit:', error);
       }
     }
     // Wait a bit then reinitialize
     await new Promise(resolve => setTimeout(resolve, 2000));
-    await this.whatsAppManager.initSession(this.defaultSessionId);
+    await this.whatsAppManager.initSession(sessionId);
   }
-
-  // TODO: Add methods for multi-session support
-  // TODO: Add methods to fetch chats from Supabase
-  // TODO: Add methods to fetch messages from Supabase
-  // TODO: Add AI agent integration for auto-reply
 }

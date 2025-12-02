@@ -1,6 +1,7 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { WhatsAppService } from '../../../application/whatsapp/WhatsAppService';
 import { SendMessageRequest } from '../../../domain/whatsapp/types';
+import { AuthRequest } from '../../../middleware/auth';
 
 export class WhatsAppController {
   private whatsAppService: WhatsAppService;
@@ -9,31 +10,50 @@ export class WhatsAppController {
     this.whatsAppService = whatsAppService;
   }
 
-  getStatus = async (_req: Request, res: Response): Promise<void> => {
+  /**
+   * Get owner ID from authenticated request
+   */
+  private getOwnerId(req: AuthRequest): string {
+    const ownerId = req.user?.id;
+    if (!ownerId) {
+      throw new Error('User not authenticated');
+    }
+    return ownerId;
+  }
+
+  getStatus = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const status = this.whatsAppService.getStatus();
+      const ownerId = this.getOwnerId(req);
+      const status = this.whatsAppService.getStatus(ownerId);
       res.json(status);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[WhatsApp Controller] Error getting status:', error);
-      res.status(500).json({ error: 'Failed to get WhatsApp status' });
+      res.status(error.message === 'User not authenticated' ? 401 : 500).json({ 
+        error: error.message || 'Failed to get WhatsApp status' 
+      });
     }
   };
 
-  getQrCode = async (_req: Request, res: Response): Promise<void> => {
+  getQrCode = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const qr = this.whatsAppService.getQrCode();
+      const ownerId = this.getOwnerId(req);
+      console.log(`[WhatsApp Controller] Getting QR code for user: ${ownerId}`);
+      const qr = await this.whatsAppService.getQrCode(ownerId);
       res.json({ qr });
-    } catch (error) {
+    } catch (error: any) {
       console.error('[WhatsApp Controller] Error getting QR code:', error);
-      res.status(500).json({ error: 'Failed to get QR code' });
+      res.status(error.message === 'User not authenticated' ? 401 : 500).json({ 
+        error: error.message || 'Failed to get QR code' 
+      });
     }
   };
 
-  sendMessage = async (req: Request, res: Response): Promise<void> => {
+  sendMessage = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+      const ownerId = this.getOwnerId(req);
       const { to, message } = req.body as SendMessageRequest;
 
-      console.log(`[WhatsApp Controller] Send message request - to: ${to}, message length: ${message?.length || 0}`);
+      console.log(`[WhatsApp Controller] Send message request from user ${ownerId} - to: ${to}, message length: ${message?.length || 0}`);
 
       if (!to || !message) {
         res.status(400).json({ error: 'Missing required fields: to, message' });
@@ -41,7 +61,7 @@ export class WhatsAppController {
       }
 
       // Check connection status first
-      const status = this.whatsAppService.getStatus();
+      const status = this.whatsAppService.getStatus(ownerId);
       if (!status.isConnected) {
         console.error('[WhatsApp Controller] Cannot send - WhatsApp not connected');
         res.status(503).json({ 
@@ -51,7 +71,7 @@ export class WhatsAppController {
         return;
       }
 
-      const result = await this.whatsAppService.sendMessage(to, message);
+      const result = await this.whatsAppService.sendMessage(ownerId, to, message);
       console.log(`[WhatsApp Controller] Message sent successfully - messageId: ${result.messageId}, chatId: ${result.chatId}`);
       
       res.json({ 
@@ -65,11 +85,13 @@ export class WhatsAppController {
     } catch (error: any) {
       console.error('[WhatsApp Controller] Error sending message:', error);
       
-      // Return more descriptive error messages
       let errorMessage = 'Failed to send message';
       let statusCode = 500;
 
-      if (error.message?.includes('not found')) {
+      if (error.message === 'User not authenticated') {
+        errorMessage = error.message;
+        statusCode = 401;
+      } else if (error.message?.includes('not found')) {
         errorMessage = 'Session not found. Please reconnect WhatsApp.';
         statusCode = 404;
       } else if (error.message?.includes('not connected')) {
@@ -83,27 +105,22 @@ export class WhatsAppController {
     }
   };
 
-  // TODO: Add controller methods for:
-  // - getChats()
-  // - getMessages(chatId)
-  // - getContacts()
-  // - markAsRead(chatId)
-
   /**
    * Logout from WhatsApp session
    * POST /api/whatsapp/logout
    */
-  logout = async (_req: Request, res: Response): Promise<void> => {
+  logout = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      console.log('[WhatsApp Controller] Logout request received');
-      await this.whatsAppService.logout();
+      const ownerId = this.getOwnerId(req);
+      console.log(`[WhatsApp Controller] Logout request from user: ${ownerId}`);
+      await this.whatsAppService.logout(ownerId);
       res.json({ 
         success: true, 
         message: 'Logged out successfully. A new QR code will be generated.' 
       });
     } catch (error: any) {
       console.error('[WhatsApp Controller] Error during logout:', error);
-      res.status(500).json({ 
+      res.status(error.message === 'User not authenticated' ? 401 : 500).json({ 
         error: error.message || 'Failed to logout from WhatsApp' 
       });
     }
@@ -113,17 +130,18 @@ export class WhatsAppController {
    * Restart WhatsApp session to get a new QR code
    * POST /api/whatsapp/restart
    */
-  restartSession = async (_req: Request, res: Response): Promise<void> => {
+  restartSession = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      console.log('[WhatsApp Controller] Restart session request received');
-      await this.whatsAppService.restartSession();
+      const ownerId = this.getOwnerId(req);
+      console.log(`[WhatsApp Controller] Restart session request from user: ${ownerId}`);
+      await this.whatsAppService.restartSession(ownerId);
       res.json({ 
         success: true, 
         message: 'Session restarted. A new QR code will be generated.' 
       });
     } catch (error: any) {
       console.error('[WhatsApp Controller] Error restarting session:', error);
-      res.status(500).json({ 
+      res.status(error.message === 'User not authenticated' ? 401 : 500).json({ 
         error: error.message || 'Failed to restart WhatsApp session' 
       });
     }
