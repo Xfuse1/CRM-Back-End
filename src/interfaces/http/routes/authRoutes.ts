@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import { supabaseAdmin } from '../../../infrastructure/supabase/client';
+import prisma from '../../../infrastructure/prisma/client';
 import { generateToken } from '../../../middleware/auth';
 import { validate, schemas } from '../../../middleware/validation';
 import { authLimiter } from '../../../middleware/rateLimiter';
@@ -26,11 +26,9 @@ router.post(
     const { email, password, fullName } = req.body;
 
     // Check if user already exists
-    const { data: existingUser } = await supabaseAdmin
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .single();
+    const existingUser = await prisma.profile.findUnique({
+      where: { email },
+    });
 
     if (existingUser) {
       throw createConflictError('User with this email already exists');
@@ -40,21 +38,20 @@ router.post(
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create user in database
-    const { data: newUser, error } = await supabaseAdmin
-      .from('profiles')
-      .insert({
+    const newUser = await prisma.profile.create({
+      data: {
         email,
-        password_hash: hashedPassword,
-        full_name: fullName,
+        passwordHash: hashedPassword,
+        fullName,
         role: 'user',
-      })
-      .select('id, email, full_name, role')
-      .single();
-
-    if (error || !newUser) {
-      logError('Failed to create user', error);
-      throw createBadRequestError('Failed to create user');
-    }
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+      },
+    });
 
     // Generate JWT token
     const token = generateToken({
@@ -71,7 +68,7 @@ router.post(
       user: {
         id: newUser.id,
         email: newUser.email,
-        fullName: newUser.full_name,
+        fullName: newUser.fullName,
         role: newUser.role,
       },
     });
@@ -90,18 +87,23 @@ router.post(
     const { email, password } = req.body;
 
     // Find user
-    const { data: user, error } = await supabaseAdmin
-      .from('profiles')
-      .select('id, email, password_hash, full_name, role')
-      .eq('email', email)
-      .single();
+    const user = await prisma.profile.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        fullName: true,
+        role: true,
+      },
+    });
 
-    if (error || !user) {
+    if (!user) {
       throw createUnauthorizedError('Invalid email or password');
     }
 
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
 
     if (!isValidPassword) {
       logInfo(`Failed login attempt for: ${email}`);
@@ -123,7 +125,7 @@ router.post(
       user: {
         id: user.id,
         email: user.email,
-        fullName: user.full_name,
+        fullName: user.fullName,
         role: user.role,
       },
     });
