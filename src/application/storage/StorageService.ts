@@ -11,11 +11,18 @@ const BUCKET_NAME = 'whatsapp-media';
 export class StorageService {
   /**
    * Initialize Supabase Storage bucket (run once on startup)
+   * Note: This is optional and won't prevent server startup if it fails
    */
   async ensureBucketExists(): Promise<void> {
     try {
       // Check if bucket exists
-      const { data: buckets } = await supabaseAdmin.storage.listBuckets();
+      const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets();
+      
+      if (listError) {
+        logInfo(`[Storage] Skipping bucket check - Supabase Storage not configured: ${listError.message}`);
+        return;
+      }
+
       const bucketExists = buckets?.some((b: { name: string }) => b.name === BUCKET_NAME);
 
       if (!bucketExists) {
@@ -47,7 +54,7 @@ export class StorageService {
         });
 
         if (error) {
-          logError('Failed to create storage bucket', error as Error);
+          logInfo(`[Storage] Could not create bucket (may already exist): ${error.message}`);
         } else {
           logInfo(`Storage bucket ${BUCKET_NAME} created successfully`);
         }
@@ -55,7 +62,7 @@ export class StorageService {
         logInfo(`Storage bucket ${BUCKET_NAME} already exists`);
       }
     } catch (error) {
-      logError('Error checking/creating storage bucket', error as Error);
+      logInfo(`[Storage] Storage initialization skipped - will use local storage if needed`);
     }
   }
 

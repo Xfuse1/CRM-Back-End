@@ -12,7 +12,6 @@ datasource db {
 }
 
 // WhatsApp session storage for Baileys
-// Stores auth state as binary data for persistence across server restarts
 model WhatsappSession {
   id        String   @id @default(uuid())
   ownerId   String   @unique @map("owner_id")
@@ -21,4 +20,124 @@ model WhatsappSession {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("whatsapp_baileys_sessions")
+  
+}
+
+// WhatsApp Sessions (for whatsapp-web.js)
+model WhatsappWebSession {
+  id              String    @id @default(uuid())
+  ownerId         String    @map("owner_id")
+  sessionKey      String    @map("session_key")
+  phoneNumber     String?   @map("phone_number")
+  status          String    @default("disconnected")
+  lastQr          String?   @map("last_qr")
+  lastConnectedAt DateTime? @map("last_connected_at")
+  meta            Json?
+  sessionData     Json?     @map("session_data")
+  authCredentials String?   @map("auth_credentials")
+  expiresAt       DateTime? @map("expires_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  reconnectAttempts Int     @default(0) @map("reconnect_attempts")
+  lastError       String?   @map("last_error")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([ownerId, sessionKey])
+  @@map("whatsapp_sessions")
+  
+}
+
+// Contacts
+model Contact {
+  id          String   @id @default(uuid())
+  ownerId     String   @map("owner_id")
+  waId        String?  @map("wa_id")
+  phone       String?
+  displayName String?  @map("display_name")
+  tags        String[] @default([])
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  chats       Chat[]
+
+  @@unique([ownerId, waId])
+  @@map("contacts")
+  
+}
+
+// Chats
+model Chat {
+  id            String    @id @default(uuid())
+  ownerId       String    @map("owner_id")
+  sessionId     String    @map("session_id")
+  contactId     String?   @map("contact_id")
+  waChatId      String?   @map("wa_chat_id")
+  type          String    @default("single")
+  title         String?
+  lastMessageAt DateTime? @map("last_message_at")
+  unreadCount   Int       @default(0) @map("unread_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  contact       Contact?  @relation(fields: [contactId], references: [id])
+  messages      Message[]
+
+  @@unique([ownerId, waChatId])
+  @@map("chats")
+  
+}
+
+// Messages
+model Message {
+  id          String    @id @default(uuid())
+  ownerId     String    @map("owner_id")
+  sessionId   String    @map("session_id")
+  chatId      String    @map("chat_id")
+  direction   String
+  waMessageId String?   @map("wa_message_id")
+  fromJid     String?   @map("from_jid")
+  toJid       String?   @map("to_jid")
+  body        String?
+  status      String?
+  sentAt      DateTime? @map("sent_at")
+  deliveredAt DateTime? @map("delivered_at")
+  readAt      DateTime? @map("read_at")
+  raw         Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  chat        Chat      @relation(fields: [chatId], references: [id])
+
+  @@map("messages")
+  
+}
+
+// AI Agent Settings
+model AiAgentSettings {
+  id                    String   @id @default(uuid())
+  ownerId               String   @unique @map("owner_id")
+  isEnabled             Boolean  @default(false) @map("is_enabled")
+  systemPrompt          String?  @map("system_prompt")
+  autoReplyDelaySeconds Int      @default(2) @map("auto_reply_delay_seconds")
+  maxTokens             Int      @default(500) @map("max_tokens")
+  temperature           Float    @default(0.7)
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_agent_settings")
+  
+}
+
+// AI Conversations
+model AiConversation {
+  id             String   @id @default(uuid())
+  ownerId        String?  @map("owner_id")
+  chatId         String   @map("chat_id")
+  contactId      String?  @map("contact_id")
+  userMessage    String   @map("user_message")
+  aiResponse     String?  @map("ai_response")
+  responseTimeMs Int?     @map("response_time_ms")
+  modelUsed      String   @map("model_used")
+  tokensUsed     Int?     @map("tokens_used")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("ai_conversations")
+  
 }
