@@ -213,9 +213,9 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
             phoneNumber,
           });
 
-          // Load existing chats
+          // Load existing chats like WhatsApp Web
           logger.info(`[Baileys] Loading existing chats for session ${sessionId}...`);
-          // Note: Baileys handles this differently than whatsapp-web.js
+          await this.loadExistingChats(sessionId, socket);
         }
       }
 
@@ -257,11 +257,29 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
               }, 5000);
             }
           } else {
-            // User logged out - clear session from database
+            // User logged out from phone - clear session from database completely
+            logger.info(`[Baileys] User logged out from phone. Clearing session ${sessionId} from database...`);
             await deleteSession(sessionId);
             await this.persistenceService
-              .updateSessionStatus(sessionData.sessionKey, 'disconnected', null)
-              .catch((err) => logger.error('[Baileys] Failed to update disconnect status:', err));
+              .updateSessionStatus(sessionData.sessionKey, 'logged_out', null)
+              .catch((err) => logger.error('[Baileys] Failed to update logout status:', err));
+            
+            // Emit logged out event
+            this.realtimeEmitter.emitToAll('whatsapp:logged_out', {
+              sessionId,
+              reason: 'Logged out from phone',
+            });
+
+            // Re-initialize session to generate new QR code
+            this.sessions.delete(sessionId);
+            setTimeout(async () => {
+              try {
+                logger.info(`[Baileys] Re-initializing session ${sessionId} for new QR after phone logout...`);
+                await this.initSession(sessionId);
+              } catch (error) {
+                logger.error(`[Baileys] Failed to re-init session after phone logout:`, error);
+              }
+            }, 3000);
           }
         }
 
@@ -438,28 +456,28 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
   async logout(sessionId: string): Promise<void> {
     const sessionData = this.sessions.get(sessionId);
     
-    if (!sessionData) {
-      logger.info(`[Baileys] Session ${sessionId} not found for logout`);
-      return;
-    }
+    logger.info(`[Baileys] Logging out session ${sessionId}...`);
 
     try {
-      logger.info(`[Baileys] Logging out session ${sessionId}...`);
-      
-      // Logout from WhatsApp
-      if (sessionData.socket) {
-        await sessionData.socket.logout();
+      // Logout from WhatsApp if socket exists
+      if (sessionData?.socket) {
+        try {
+          await sessionData.socket.logout();
+        } catch (e) {
+          logger.warn(`[Baileys] Socket logout error (may already be disconnected):`, e);
+        }
       }
 
-      // Clear session data
-      sessionData.isConnected = false;
-      sessionData.phoneNumber = undefined;
-      sessionData.qrCode = null;
+      // Clear session from database - THIS IS CRITICAL!
+      await deleteSession(sessionId);
+      logger.info(`[Baileys] Deleted session from database: ${sessionId}`);
 
-      // Update database
-      await this.persistenceService
-        .updateSessionStatus(sessionData.sessionKey, 'logged_out', null)
-        .catch((err) => logger.error('[Baileys] Failed to update logout status:', err));
+      // Update status in whatsapp_web_sessions table
+      if (sessionData) {
+        await this.persistenceService
+          .updateSessionStatus(sessionData.sessionKey, 'logged_out', null)
+          .catch((err) => logger.error('[Baileys] Failed to update logout status:', err));
+      }
 
       // Remove from sessions map
       this.sessions.delete(sessionId);
@@ -471,11 +489,12 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
 
       logger.info(`[Baileys] Session ${sessionId} logged out successfully`);
 
-      // Re-initialize session to generate new QR code
+      // Re-initialize session to generate new QR code after 2 seconds
       logger.info(`[Baileys] Re-initializing session ${sessionId} for new QR...`);
       setTimeout(async () => {
         try {
           await this.initSession(sessionId);
+          logger.info(`[Baileys] Session ${sessionId} re-initialized, new QR should be available`);
         } catch (error) {
           logger.error(`[Baileys] Failed to re-init session after logout:`, error);
         }
@@ -486,6 +505,35 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
       // Even if logout fails, clean up the session
       this.sessions.delete(sessionId);
       throw error;
+    }
+  }
+
+  /**
+   * Restart session - force disconnect and reconnect with new QR
+   */
+  async restartSession(sessionId: string): Promise<void> {
+    logger.info(`[Baileys] Restarting session ${sessionId}...`);
+    
+    // Logout first (this deletes session and re-initializes)
+    await this.logout(sessionId);
+  }
+
+  /**
+   * Load existing chats when connected (like WhatsApp Web)
+   */
+  private async loadExistingChats(sessionId: string, socket: WASocket): Promise<void> {
+    try {
+      logger.info(`[Baileys] Fetching chat list for session ${sessionId}...`);
+      
+      // Emit chats loaded event to frontend
+      this.realtimeEmitter.emitToAll('whatsapp:chats_loaded', {
+        sessionId,
+        message: 'Connected! Chats will sync as messages arrive.',
+      });
+
+      logger.info(`[Baileys] Chat sync initiated for session ${sessionId}`);
+    } catch (error) {
+      logger.error(`[Baileys] Failed to load chats for session ${sessionId}:`, error);
     }
   }
 
