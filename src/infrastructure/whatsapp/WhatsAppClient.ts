@@ -177,17 +177,17 @@ export class WhatsAppClientManager implements IWhatsAppClient {
           chatId: result.chatRow.id,
           message: {
             id: result.messageRow.id,
-            waMessageId: result.messageRow.wa_message_id,
-            from: result.messageRow.from_jid,
-            to: result.messageRow.to_jid,
+            waMessageId: result.messageRow.waMessageId,
+            from: result.messageRow.fromJid,
+            to: result.messageRow.toJid,
             body: result.messageRow.body,
             direction: result.messageRow.direction,
-            timestamp: result.messageRow.created_at,
+            timestamp: result.messageRow.createdAt,
           },
           contact: {
             id: result.contactRow.id,
-            waId: result.contactRow.wa_id,
-            displayName: result.contactRow.display_name,
+            waId: result.contactRow.waId,
+            displayName: result.contactRow.displayName,
           },
         });
 
@@ -344,12 +344,12 @@ export class WhatsAppClientManager implements IWhatsAppClient {
         chatId: result.chatRow.id,
         message: {
           id: result.messageRow.id,
-          waMessageId: result.messageRow.wa_message_id,
-          to: result.messageRow.to_jid,
+          waMessageId: result.messageRow.waMessageId,
+          to: result.messageRow.toJid,
           body: result.messageRow.body,
           direction: result.messageRow.direction,
           status: 'sent',
-          created_at: result.messageRow.created_at,
+          createdAt: result.messageRow.createdAt,
         },
       });
 

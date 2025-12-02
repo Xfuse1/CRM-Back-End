@@ -6,87 +6,87 @@
 // Re-export everything from the Prisma repository
 export * from '../prisma/whatsappRepository';
 
-// Keep type definitions for backward compatibility
+// Type definitions matching Prisma camelCase output
 export interface WhatsAppSessionRow {
   id: string;
-  owner_id: string;
-  session_key: string;
-  phone_number: string | null;
+  ownerId: string;
+  sessionKey: string;
+  phoneNumber: string | null;
   status: string;
-  last_qr: string | null;
-  last_connected_at: string | null;
+  lastQr: string | null;
+  lastConnectedAt: Date | null;
   meta: unknown;
-  session_data?: any;
-  auth_credentials?: string | null;
-  expires_at?: string | null;
-  is_active?: boolean;
-  reconnect_attempts?: number;
-  last_error?: string | null;
-  created_at: string;
-  updated_at: string;
+  sessionData?: any;
+  authCredentials?: string | null;
+  expiresAt?: Date | null;
+  isActive?: boolean;
+  reconnectAttempts?: number;
+  lastError?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ContactRow {
   id: string;
-  owner_id: string;
-  wa_id: string | null;
+  ownerId: string;
+  waId: string | null;
   phone: string | null;
-  display_name: string | null;
+  displayName: string | null;
   tags: string[];
-  created_at: string;
+  createdAt: Date;
 }
 
 export interface ChatRow {
   id: string;
-  owner_id: string;
-  session_id: string;
-  contact_id: string | null;
+  ownerId: string;
+  sessionId: string;
+  contactId: string | null;
   type: string;
   title: string | null;
-  last_message_at: string | null;
-  unread_count: number;
-  created_at: string;
+  lastMessageAt: Date | null;
+  unreadCount: number;
+  createdAt: Date;
 }
 
 export interface MessageRow {
   id: string;
-  owner_id: string;
-  session_id: string;
-  chat_id: string;
+  ownerId: string;
+  sessionId: string;
+  chatId: string;
   direction: string;
-  wa_message_id: string | null;
-  from_jid: string | null;
-  to_jid: string | null;
+  waMessageId: string | null;
+  fromJid: string | null;
+  toJid: string | null;
   body: string | null;
   status: string | null;
-  sent_at: string | null;
-  delivered_at: string | null;
-  read_at: string | null;
+  sentAt: Date | null;
+  deliveredAt: Date | null;
+  readAt: Date | null;
   raw: unknown;
-  created_at: string;
+  createdAt: Date;
 }
 
 export interface AIAgentSettingsRow {
   id: string;
-  owner_id: string;
-  is_enabled: boolean;
-  system_prompt: string | null;
-  auto_reply_delay_seconds: number;
-  max_tokens: number;
+  ownerId: string;
+  isEnabled: boolean;
+  systemPrompt: string | null;
+  autoReplyDelaySeconds: number;
+  maxTokens: number;
   temperature: number;
-  created_at: string;
-  updated_at: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface AIConversationRow {
   id: string;
-  owner_id: string;
-  chat_id: string;
-  contact_id: string;
-  user_message: string;
-  ai_response: string | null;
-  response_time_ms: number | null;
-  model_used: string;
-  tokens_used: number | null;
-  created_at: string;
+  ownerId: string;
+  chatId: string;
+  contactId: string;
+  userMessage: string;
+  aiResponse: string | null;
+  responseTimeMs: number | null;
+  modelUsed: string;
+  tokensUsed: number | null;
+  createdAt: Date;
 }

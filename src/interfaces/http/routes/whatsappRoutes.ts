@@ -69,16 +69,16 @@ whatsappRouter.get(
   asyncHandler(async (req: Request, res: Response) => {
     const chats = await persistenceService.getChats();
 
-    // Map to DTOs
+    // Map to DTOs - Prisma returns camelCase
     const chatDTOs = chats.map((chat) => ({
       id: chat.id,
-      sessionId: chat.session_id,
-      contactId: chat.contact_id,
+      sessionId: chat.sessionId,
+      contactId: chat.contactId,
       type: chat.type,
       title: chat.title,
-      lastMessageAt: chat.last_message_at,
-      unreadCount: chat.unread_count || 0,
-      createdAt: chat.created_at,
+      lastMessageAt: chat.lastMessageAt,
+      unreadCount: chat.unreadCount || 0,
+      createdAt: chat.createdAt,
     }));
 
     res.json({ chats: chatDTOs });
@@ -110,16 +110,16 @@ whatsappRouter.get(
     // Get total count for pagination
     const total = await persistenceService.getMessageCount(chatId);
 
-    // Map to DTOs
+    // Map to DTOs - Prisma returns camelCase
     const messageDTOs = messages.map((msg) => ({
       id: msg.id,
       direction: msg.direction,
       body: msg.body,
-      fromJid: msg.from_jid,
-      toJid: msg.to_jid,
+      fromJid: msg.fromJid,
+      toJid: msg.toJid,
       status: msg.status,
-      sentAt: msg.sent_at,
-      createdAt: msg.created_at,
+      sentAt: msg.sentAt,
+      createdAt: msg.createdAt,
     }));
 
     res.json({
