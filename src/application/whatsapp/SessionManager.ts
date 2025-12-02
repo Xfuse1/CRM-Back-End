@@ -20,10 +20,10 @@ export class SessionManager {
       expiresAt.setDate(expiresAt.getDate() + this.SESSION_EXPIRY_DAYS);
 
       await whatsappRepo.updateSessionData(sessionId, {
-        session_data: sessionData,
-        expires_at: expiresAt.toISOString(),
-        is_active: true,
-        last_connected_at: new Date().toISOString(),
+        sessionData: sessionData,
+        expiresAt: expiresAt,
+        isActive: true,
+        lastConnectedAt: new Date(),
       });
 
       logInfo(`Session data saved for: ${sessionId}`);
@@ -46,8 +46,8 @@ export class SessionManager {
       }
 
       // Check if session is expired
-      if (session.expires_at) {
-        const expiryDate = new Date(session.expires_at);
+      if (session.expiresAt) {
+        const expiryDate = new Date(session.expiresAt);
         if (expiryDate < new Date()) {
           logWarn(`Session expired for: ${sessionId}`);
           await this.markSessionExpired(sessionId);
@@ -56,7 +56,7 @@ export class SessionManager {
       }
 
       logInfo(`Session data loaded for: ${sessionId}`);
-      return session.session_data;
+      return session.sessionData;
     } catch (error) {
       logError('Failed to load session data', error);
       return null;
@@ -69,7 +69,7 @@ export class SessionManager {
   async markSessionExpired(sessionId: string): Promise<void> {
     try {
       await whatsappRepo.updateSessionData(sessionId, {
-        is_active: false,
+        isActive: false,
         status: 'expired',
       });
 
@@ -88,9 +88,9 @@ export class SessionManager {
   ): Promise<void> {
     try {
       await whatsappRepo.updateSessionData(sessionId, {
-        is_active: false,
+        isActive: false,
         status: 'disconnected',
-        last_error: error || null,
+        lastError: error || null,
       });
 
       logInfo(`Session marked as disconnected: ${sessionId}`);
@@ -107,10 +107,10 @@ export class SessionManager {
   ): Promise<number> {
     try {
       const session = await whatsappRepo.getSessionData(sessionId);
-      const attempts = (session?.reconnect_attempts || 0) + 1;
+      const attempts = (session?.reconnectAttempts || 0) + 1;
 
       await whatsappRepo.updateSessionData(sessionId, {
-        reconnect_attempts: attempts,
+        reconnectAttempts: attempts,
       });
 
       logInfo(`Reconnect attempt ${attempts} for: ${sessionId}`);
@@ -127,8 +127,8 @@ export class SessionManager {
   async resetReconnectAttempts(sessionId: string): Promise<void> {
     try {
       await whatsappRepo.updateSessionData(sessionId, {
-        reconnect_attempts: 0,
-        last_error: null,
+        reconnectAttempts: 0,
+        lastError: null,
       });
 
       logInfo(`Reconnect attempts reset for: ${sessionId}`);
@@ -146,7 +146,7 @@ export class SessionManager {
 
       if (!session) return false;
 
-      const attempts = session.reconnect_attempts || 0;
+      const attempts = session.reconnectAttempts || 0;
       return attempts < this.MAX_RECONNECT_ATTEMPTS;
     } catch (error) {
       logError('Failed to check reconnect eligibility', error);
