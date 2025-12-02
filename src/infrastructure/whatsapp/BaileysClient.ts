@@ -27,6 +27,7 @@ import { WhatsAppPersistenceService } from '../../application/whatsapp/WhatsAppP
 import { SessionManager } from '../../application/whatsapp/SessionManager';
 import { AIAgentService } from '../../application/ai/AIAgentService';
 import { getAISettings, getConversationContext, saveAIConversation } from '../supabase/whatsappRepository';
+import { setCurrentOwnerId } from '../prisma/whatsappRepository';
 import { loadSession, saveSession, deleteSession } from '../../services/whatsappSessionStore';
 import logger from '../../utils/logger';
 import pino from 'pino';
@@ -99,6 +100,17 @@ async function createDbAuthState(ownerId: string): Promise<{
   return { state, saveCreds };
 }
 
+/**
+ * Extract user ID from session ID
+ * Session ID format: user_{uuid}
+ */
+function extractUserIdFromSessionId(sessionId: string): string {
+  if (sessionId.startsWith('user_')) {
+    return sessionId.replace('user_', '');
+  }
+  return sessionId;
+}
+
 export class BaileysWhatsAppClientManager implements IWhatsAppClient {
   private sessions: Map<string, SessionData> = new Map();
   private realtimeEmitter: IRealtimeEmitter;
@@ -111,6 +123,14 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
     this.persistenceService = persistenceService;
     this.sessionManager = new SessionManager();
     this.aiAgent = new AIAgentService();
+  }
+  
+  /**
+   * Set the owner context for database operations
+   */
+  private setOwnerContext(sessionId: string): void {
+    const userId = extractUserIdFromSessionId(sessionId);
+    setCurrentOwnerId(userId);
   }
 
   async initSession(sessionId: string): Promise<void> {
@@ -307,6 +327,9 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
         return;
       }
 
+      // Set owner context for database operations
+      this.setOwnerContext(sessionId);
+
       for (const message of m.messages) {
         // Skip non-text messages for now
         if (!message.message?.conversation && !message.message?.extendedTextMessage?.text) {
@@ -385,6 +408,9 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
     socket.ev.on('messaging-history.set', async ({ chats, contacts, messages, isLatest }) => {
       const sessionData = this.sessions.get(sessionId);
       if (!sessionData) return;
+
+      // Set owner context for database operations
+      this.setOwnerContext(sessionId);
 
       logger.info(`[Baileys] History sync received for session ${sessionId}:`);
       logger.info(`[Baileys]   - Chats: ${chats.length}`);
@@ -544,6 +570,9 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
       throw new Error(`Session ${sessionId} is not connected`);
     }
 
+    // Set owner context for database operations
+    this.setOwnerContext(sessionId);
+
     try {
       // Ensure the 'to' number is in the correct format for Baileys
       const formattedNumber = to.includes('@s.whatsapp.net')
@@ -559,9 +588,10 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
       logger.info(`[Baileys] Message sent from session ${sessionId} to ${to}`);
 
       // Save sent message to database
+      // Note: Repository normalizes JID to @s.whatsapp.net format, so pass as-is
       const result = await this.persistenceService.handleOutgoingMessage(
         sessionData.sessionKey,
-        formattedNumber.replace('@s.whatsapp.net', '@c.us'), // Convert back for DB consistency
+        formattedNumber, // Repository handles JID normalization
         message,
         sentMessage?.key?.id || ''
       );

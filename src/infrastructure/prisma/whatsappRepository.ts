@@ -125,34 +125,68 @@ export async function updateSessionData(sessionKey: string, updates: any): Promi
 // Contacts
 // ============================================
 
+/**
+ * Normalize JID to consistent format
+ * Always use @s.whatsapp.net for individual chats
+ */
+function normalizeJid(jid: string): string {
+  if (!jid) return jid;
+  // Extract phone number and normalize to @s.whatsapp.net
+  const phone = jid.replace(/@(s\.whatsapp\.net|c\.us)$/, '');
+  return `${phone}@s.whatsapp.net`;
+}
+
+/**
+ * Extract phone number from JID
+ */
+function extractPhoneFromJid(jid: string): string {
+  return jid.replace(/@(s\.whatsapp\.net|c\.us)$/, '');
+}
+
 export async function upsertContactFromMessage(
   jid: string,
   displayName?: string | null
 ): Promise<any> {
-  // Try to find existing contact
+  const normalizedJid = normalizeJid(jid);
+  const phone = extractPhoneFromJid(jid);
+  
+  // Try to find existing contact by normalized JID or phone pattern
   let contact = await prisma.contact.findFirst({
     where: {
       ownerId: getOwnerId(),
-      waId: jid,
+      OR: [
+        { waId: normalizedJid },
+        { waId: `${phone}@s.whatsapp.net` },
+        { waId: `${phone}@c.us` },
+        { waId: phone },
+      ],
     },
   });
 
   if (contact) {
-    // Update display name if provided
+    // Update display name and normalize waId if needed
+    const updates: any = {};
     if (displayName && displayName !== contact.displayName) {
+      updates.displayName = displayName;
+    }
+    if (contact.waId !== normalizedJid) {
+      updates.waId = normalizedJid;
+    }
+    
+    if (Object.keys(updates).length > 0) {
       contact = await prisma.contact.update({
         where: { id: contact.id },
-        data: { displayName },
+        data: updates,
       });
     }
     return contact;
   }
 
-  // Create new contact
+  // Create new contact with normalized JID
   contact = await prisma.contact.create({
     data: {
       ownerId: getOwnerId(),
-      waId: jid,
+      waId: normalizedJid,
       displayName: displayName || null,
     },
   });

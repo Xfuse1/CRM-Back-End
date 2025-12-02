@@ -182,11 +182,11 @@ export class WhatsAppPersistenceService {
     // Get the session from DB
     const session = await whatsappRepo.ensureSessionForKey(sessionKey);
 
-    // Convert Baileys JID format (@s.whatsapp.net) to standard format (@c.us)
-    const normalizedJid = jid.replace('@s.whatsapp.net', '@c.us');
+    // Note: upsertContactFromMessage already normalizes JID to @s.whatsapp.net format
+    // No need to convert here - let the repository handle normalization
 
-    // Upsert contact
-    const contactRow = await whatsappRepo.upsertContactFromMessage(normalizedJid, displayName);
+    // Upsert contact (repository will normalize JID)
+    const contactRow = await whatsappRepo.upsertContactFromMessage(jid, displayName);
 
     // Ensure chat exists
     const chatRow = await whatsappRepo.ensureChatForContact(session.id, contactRow.id);
