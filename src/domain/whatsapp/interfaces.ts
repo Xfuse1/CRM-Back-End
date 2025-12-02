@@ -12,6 +12,7 @@ export interface IWhatsAppClient {
 
 export interface IRealtimeEmitter {
   emitToAll(event: string, payload: unknown): void;
+  emitToUser(userId: string, event: string, payload: unknown): void;
 }
 
 export interface IWhatsAppEventHandler {

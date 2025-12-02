@@ -197,7 +197,8 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
             .catch((err) => logger.error('[Baileys] Failed to update QR in DB:', err));
         }
 
-        this.realtimeEmitter.emitToAll('whatsapp:qr', {
+        const userId = extractUserIdFromSessionId(sessionId);
+        this.realtimeEmitter.emitToUser(userId, 'whatsapp:qr', {
           sessionId,
           qr,
         });
@@ -234,7 +235,8 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
             null
           );
 
-          this.realtimeEmitter.emitToAll('whatsapp:ready', {
+          const userId = extractUserIdFromSessionId(sessionId);
+          this.realtimeEmitter.emitToUser(userId, 'whatsapp:ready', {
             sessionId,
             phoneNumber,
           });
@@ -291,7 +293,8 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
               .catch((err) => logger.error('[Baileys] Failed to update logout status:', err));
             
             // Emit logged out event
-            this.realtimeEmitter.emitToAll('whatsapp:logged_out', {
+            const userId = extractUserIdFromSessionId(sessionId);
+            this.realtimeEmitter.emitToUser(userId, 'whatsapp:logged_out', {
               sessionId,
               reason: 'Logged out from phone',
             });
@@ -309,7 +312,8 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
           }
         }
 
-        this.realtimeEmitter.emitToAll('whatsapp:disconnected', {
+        const userId = extractUserIdFromSessionId(sessionId);
+        this.realtimeEmitter.emitToUser(userId, 'whatsapp:disconnected', {
           sessionId,
           reason: `Status code: ${statusCode}`,
         });
@@ -376,8 +380,9 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
             messageForPersistence as any
           );
 
-          // Emit to Socket.io with enriched data
-          this.realtimeEmitter.emitToAll('message:incoming', {
+          // Emit to Socket.io with enriched data - only to the user who owns this session
+          const userId = extractUserIdFromSessionId(sessionId);
+          this.realtimeEmitter.emitToUser(userId, 'message:incoming', {
             sessionId,
             chatId: result.chatRow.id,
             message: {
@@ -488,7 +493,8 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
       }
 
       // Emit chats loaded event to frontend
-      this.realtimeEmitter.emitToAll('whatsapp:chats_synced', {
+      const userId = extractUserIdFromSessionId(sessionId);
+      this.realtimeEmitter.emitToUser(userId, 'whatsapp:chats_synced', {
         sessionId,
         chatsCount: chats.length,
         messagesCount: totalMessages,
@@ -597,7 +603,8 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
       );
 
       // Emit message sent event
-      this.realtimeEmitter.emitToAll('message:sent', {
+      const userId = extractUserIdFromSessionId(sessionId);
+      this.realtimeEmitter.emitToUser(userId, 'message:sent', {
         sessionId,
         chatId: result.chatRow.id,
         message: {
@@ -662,7 +669,8 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
       this.sessions.delete(sessionId);
 
       // Emit logout event
-      this.realtimeEmitter.emitToAll('whatsapp:logged_out', {
+      const userId = extractUserIdFromSessionId(sessionId);
+      this.realtimeEmitter.emitToUser(userId, 'whatsapp:logged_out', {
         sessionId,
       });
 
@@ -705,7 +713,8 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
       logger.info(`[Baileys] Fetching chat list for session ${sessionId}...`);
       
       // Emit chats loaded event to frontend
-      this.realtimeEmitter.emitToAll('whatsapp:chats_loaded', {
+      const userId = extractUserIdFromSessionId(sessionId);
+      this.realtimeEmitter.emitToUser(userId, 'whatsapp:chats_loaded', {
         sessionId,
         message: 'Connected! Chats will sync as messages arrive.',
       });

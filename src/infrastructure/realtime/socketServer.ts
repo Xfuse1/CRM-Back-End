@@ -1,10 +1,13 @@
 import { Server as HttpServer } from 'http';
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer, Socket } from 'socket.io';
 import { config } from '../../config/env';
 import { IRealtimeEmitter } from '../../domain/whatsapp/interfaces';
+import jwt from 'jsonwebtoken';
 
 export class RealtimeServer implements IRealtimeEmitter {
   private io: SocketIOServer;
+  // Map of userId to socket IDs (one user can have multiple connections)
+  private userSockets: Map<string, Set<string>> = new Map();
 
   constructor(httpServer: HttpServer) {
     // Configure allowed origins for Socket.io
@@ -46,17 +49,48 @@ export class RealtimeServer implements IRealtimeEmitter {
   }
 
   private setupEventHandlers(): void {
-    this.io.on('connection', (socket) => {
+    this.io.on('connection', (socket: Socket) => {
       console.log(`[Socket.io] Client connected: ${socket.id}`);
 
-      // TODO: Add authentication middleware for Socket.io
-      // TODO: Associate socket with user session
+      let userId: string | null = null;
+
+      // Handle authentication - client sends token after connecting
+      socket.on('auth', (data: { token: string }) => {
+        try {
+          const decoded = jwt.verify(data.token, config.jwtSecret) as { id: string };
+          userId = decoded.id;
+          
+          // Add socket to user's socket set
+          if (!this.userSockets.has(userId)) {
+            this.userSockets.set(userId, new Set());
+          }
+          this.userSockets.get(userId)!.add(socket.id);
+          
+          // Join user-specific room
+          socket.join(`user:${userId}`);
+          
+          console.log(`[Socket.io] User ${userId} authenticated (socket: ${socket.id})`);
+          socket.emit('auth:success', { userId });
+        } catch (error) {
+          console.error(`[Socket.io] Auth failed for socket ${socket.id}:`, error);
+          socket.emit('auth:error', { message: 'Invalid token' });
+        }
+      });
 
       socket.on('disconnect', () => {
         console.log(`[Socket.io] Client disconnected: ${socket.id}`);
+        
+        // Remove socket from user's socket set
+        if (userId) {
+          const userSocketSet = this.userSockets.get(userId);
+          if (userSocketSet) {
+            userSocketSet.delete(socket.id);
+            if (userSocketSet.size === 0) {
+              this.userSockets.delete(userId);
+            }
+          }
+        }
       });
-
-      // TODO: Handle client-side events for requesting QR, sending messages, etc.
     });
   }
 
@@ -64,8 +98,11 @@ export class RealtimeServer implements IRealtimeEmitter {
     this.io.emit(event, payload);
   }
 
-  // TODO: Add method to emit to specific user/session
-  // emitToUser(userId: string, event: string, payload: unknown): void
+  emitToUser(userId: string, event: string, payload: unknown): void {
+    // Emit to user-specific room
+    this.io.to(`user:${userId}`).emit(event, payload);
+    console.log(`[Socket.io] Emitted ${event} to user ${userId}`);
+  }
 
   getServer(): SocketIOServer {
     return this.io;
