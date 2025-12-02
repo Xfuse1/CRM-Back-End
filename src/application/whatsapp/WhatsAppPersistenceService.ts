@@ -52,27 +52,23 @@ export class WhatsAppPersistenceService {
     // If fromMe, the remote is 'to', otherwise it's 'from'
     const remoteJid = msg.fromMe ? toJid : fromJid;
 
-    // Extract display name if available (from contact or chat name)
+    // Extract display name if available
     let displayName: string | null = null;
     try {
-      const contact = await msg.getContact();
-      displayName = contact.name || contact.pushname || null;
+      // First try getContact if available
+      if (typeof msg.getContact === 'function') {
+        const contact = await msg.getContact();
+        displayName = contact?.name || contact?.pushname || null;
+        console.log('[Persistence] Got contact info:', { name: contact?.name, pushname: contact?.pushname });
+      }
     } catch (err) {
       console.warn('[Persistence] Failed to get contact name:', err);
     }
 
-    // If no display name found, use phone number from JID
-    if (!displayName) {
-      // Extract phone number from JID (format: 1234567890@c.us)
-      const phoneMatch = remoteJid.match(/^(\d+)@/);
-      if (phoneMatch) {
-        displayName = `+${phoneMatch[1]}`; // Format as +1234567890
-      } else {
-        displayName = remoteJid; // Fallback to full JID
-      }
-    }
+    // Don't fallback to phone number for displayName - let the DB keep null if no real name
+    // The frontend/API will handle showing phone number when displayName is null
 
-    // Upsert contact
+    // Upsert contact - only pass displayName if we have a real name, not a phone number
     const contactRow = await whatsappRepo.upsertContactFromMessage(remoteJid, displayName);
 
     // Ensure chat exists

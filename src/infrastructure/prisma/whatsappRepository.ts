@@ -186,8 +186,11 @@ export async function listChatsWithLastMessage(): Promise<any[]> {
   });
 
   return chats.map((chat: any) => {
-    // Format phone number for display (remove @s.whatsapp.net)
-    const phoneNumber = chat.contact?.waId?.replace('@s.whatsapp.net', '') || null;
+    // Format phone number for display (remove WhatsApp suffixes)
+    let phoneNumber = chat.contact?.waId || null;
+    if (phoneNumber) {
+      phoneNumber = phoneNumber.replace(/@(s\.whatsapp\.net|c\.us)$/, '');
+    }
     
     return {
       ...chat,
