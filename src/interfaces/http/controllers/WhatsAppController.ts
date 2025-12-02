@@ -88,4 +88,44 @@ export class WhatsAppController {
   // - getMessages(chatId)
   // - getContacts()
   // - markAsRead(chatId)
+
+  /**
+   * Logout from WhatsApp session
+   * POST /api/whatsapp/logout
+   */
+  logout = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      console.log('[WhatsApp Controller] Logout request received');
+      await this.whatsAppService.logout();
+      res.json({ 
+        success: true, 
+        message: 'Logged out successfully. A new QR code will be generated.' 
+      });
+    } catch (error: any) {
+      console.error('[WhatsApp Controller] Error during logout:', error);
+      res.status(500).json({ 
+        error: error.message || 'Failed to logout from WhatsApp' 
+      });
+    }
+  };
+
+  /**
+   * Restart WhatsApp session to get a new QR code
+   * POST /api/whatsapp/restart
+   */
+  restartSession = async (_req: Request, res: Response): Promise<void> => {
+    try {
+      console.log('[WhatsApp Controller] Restart session request received');
+      await this.whatsAppService.restartSession();
+      res.json({ 
+        success: true, 
+        message: 'Session restarted. A new QR code will be generated.' 
+      });
+    } catch (error: any) {
+      console.error('[WhatsApp Controller] Error restarting session:', error);
+      res.status(500).json({ 
+        error: error.message || 'Failed to restart WhatsApp session' 
+      });
+    }
+  };
 }

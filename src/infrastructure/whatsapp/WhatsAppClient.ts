@@ -205,37 +205,34 @@ export class WhatsAppClientManager implements IWhatsAppClient {
       if (sessionData) {
         sessionData.isConnected = false;
         sessionData.phoneNumber = undefined;
+        sessionData.qrCode = null;
 
-        // Mark session as disconnected and check for reconnect
+        // Mark session as disconnected
         await this.sessionManager.markSessionDisconnected(sessionData.sessionKey, reason);
         
-        const shouldReconnect = await this.sessionManager.shouldReconnect(sessionData.sessionKey);
-        
-        if (shouldReconnect) {
-          console.log(`[WhatsApp] Attempting to reconnect session ${sessionId}...`);
-          await this.sessionManager.incrementReconnectAttempts(sessionData.sessionKey);
-          
-          // Auto-reconnect after 5 seconds
-          setTimeout(async () => {
-            try {
-              this.sessions.delete(sessionId);
-              await this.initSession(sessionId);
-            } catch (error) {
-              console.error(`[WhatsApp] Auto-reconnect failed for ${sessionId}:`, error);
-            }
-          }, 5000);
-        } else {
-          // Update status in database
-          await this.persistenceService
-            .updateSessionStatus(sessionData.sessionKey, 'disconnected', null)
-            .catch((err) => console.error('[WhatsApp] Failed to update disconnect status:', err));
-        }
+        // Update status in database
+        await this.persistenceService
+          .updateSessionStatus(sessionData.sessionKey, 'disconnected', null)
+          .catch((err) => console.error('[WhatsApp] Failed to update disconnect status:', err));
       }
 
+      // Emit disconnect event to frontend
       this.realtimeEmitter.emitToAll('whatsapp:disconnected', {
         sessionId,
         reason,
       });
+
+      // Auto-restart session to generate new QR code after 3 seconds
+      console.log(`[WhatsApp] Will restart session ${sessionId} in 3 seconds to generate new QR...`);
+      setTimeout(async () => {
+        try {
+          console.log(`[WhatsApp] Restarting session ${sessionId}...`);
+          this.sessions.delete(sessionId);
+          await this.initSession(sessionId);
+        } catch (error) {
+          console.error(`[WhatsApp] Failed to restart session ${sessionId}:`, error);
+        }
+      }, 3000);
     });
 
     client.on('auth_failure', (message: string) => {
@@ -528,8 +525,79 @@ export class WhatsAppClientManager implements IWhatsAppClient {
     }
   }
 
-  // TODO: Add methods for multi-session management:
-  // - destroySession(sessionId: string)
-  // - getAllSessions()
-  // - getSessionInfo(sessionId: string)
+  /**
+   * Logout and destroy a WhatsApp session
+   * This will disconnect from WhatsApp and clear all session data
+   */
+  async logout(sessionId: string): Promise<void> {
+    const sessionData = this.sessions.get(sessionId);
+    
+    if (!sessionData) {
+      console.log(`[WhatsApp] Session ${sessionId} not found for logout`);
+      return;
+    }
+
+    try {
+      console.log(`[WhatsApp] Logging out session ${sessionId}...`);
+      
+      // Logout from WhatsApp (this clears the authentication)
+      if (sessionData.client) {
+        await sessionData.client.logout();
+        await sessionData.client.destroy();
+      }
+
+      // Clear session data
+      sessionData.isConnected = false;
+      sessionData.phoneNumber = undefined;
+      sessionData.qrCode = null;
+
+      // Update database
+      await this.persistenceService
+        .updateSessionStatus(sessionData.sessionKey, 'logged_out', null)
+        .catch((err) => console.error('[WhatsApp] Failed to update logout status:', err));
+
+      // Remove from sessions map
+      this.sessions.delete(sessionId);
+
+      // Emit logout event
+      this.realtimeEmitter.emitToAll('whatsapp:logged_out', {
+        sessionId,
+      });
+
+      console.log(`[WhatsApp] Session ${sessionId} logged out successfully`);
+
+      // Re-initialize session to generate new QR code
+      console.log(`[WhatsApp] Re-initializing session ${sessionId} for new QR...`);
+      setTimeout(async () => {
+        try {
+          await this.initSession(sessionId);
+        } catch (error) {
+          console.error(`[WhatsApp] Failed to re-init session after logout:`, error);
+        }
+      }, 2000);
+
+    } catch (error) {
+      console.error(`[WhatsApp] Error during logout:`, error);
+      // Even if logout fails, clean up the session
+      this.sessions.delete(sessionId);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all active sessions info
+   */
+  getAllSessions(): Array<{ sessionId: string; isConnected: boolean; phoneNumber?: string }> {
+    const sessions: Array<{ sessionId: string; isConnected: boolean; phoneNumber?: string }> = [];
+    
+    this.sessions.forEach((data, id) => {
+      sessions.push({
+        sessionId: id,
+        isConnected: data.isConnected,
+        phoneNumber: data.phoneNumber,
+      });
+    });
+    
+    return sessions;
+  }
 }

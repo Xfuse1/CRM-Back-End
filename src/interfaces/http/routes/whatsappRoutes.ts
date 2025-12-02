@@ -137,3 +137,41 @@ whatsappRouter.get(
 // TODO: Add routes for:
 // GET /api/whatsapp/contacts - Get all contacts
 // POST /api/whatsapp/chats/:chatId/read - Mark chat as read
+
+/**
+ * POST /api/whatsapp/logout
+ * Logout from WhatsApp and generate a new QR code
+ */
+whatsappRouter.post(
+  '/logout',
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      await whatsAppController.logout(req, res);
+    } catch (error) {
+      console.error('[WhatsApp] Logout error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to logout from WhatsApp' 
+      });
+    }
+  })
+);
+
+/**
+ * POST /api/whatsapp/restart
+ * Restart the WhatsApp session (useful for getting a new QR code)
+ */
+whatsappRouter.post(
+  '/restart',
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      await whatsAppController.restartSession(req, res);
+    } catch (error) {
+      console.error('[WhatsApp] Restart error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to restart WhatsApp session' 
+      });
+    }
+  })
+);

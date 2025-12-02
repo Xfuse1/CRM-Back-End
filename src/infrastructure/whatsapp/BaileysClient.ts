@@ -432,6 +432,64 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
   }
 
   /**
+   * Logout and destroy a WhatsApp session
+   * This will disconnect from WhatsApp and clear all session data
+   */
+  async logout(sessionId: string): Promise<void> {
+    const sessionData = this.sessions.get(sessionId);
+    
+    if (!sessionData) {
+      logger.info(`[Baileys] Session ${sessionId} not found for logout`);
+      return;
+    }
+
+    try {
+      logger.info(`[Baileys] Logging out session ${sessionId}...`);
+      
+      // Logout from WhatsApp
+      if (sessionData.socket) {
+        await sessionData.socket.logout();
+      }
+
+      // Clear session data
+      sessionData.isConnected = false;
+      sessionData.phoneNumber = undefined;
+      sessionData.qrCode = null;
+
+      // Update database
+      await this.persistenceService
+        .updateSessionStatus(sessionData.sessionKey, 'logged_out', null)
+        .catch((err) => logger.error('[Baileys] Failed to update logout status:', err));
+
+      // Remove from sessions map
+      this.sessions.delete(sessionId);
+
+      // Emit logout event
+      this.realtimeEmitter.emitToAll('whatsapp:logged_out', {
+        sessionId,
+      });
+
+      logger.info(`[Baileys] Session ${sessionId} logged out successfully`);
+
+      // Re-initialize session to generate new QR code
+      logger.info(`[Baileys] Re-initializing session ${sessionId} for new QR...`);
+      setTimeout(async () => {
+        try {
+          await this.initSession(sessionId);
+        } catch (error) {
+          logger.error(`[Baileys] Failed to re-init session after logout:`, error);
+        }
+      }, 2000);
+
+    } catch (error) {
+      logger.error(`[Baileys] Error during logout:`, error);
+      // Even if logout fails, clean up the session
+      this.sessions.delete(sessionId);
+      throw error;
+    }
+  }
+
+  /**
    * Handle AI auto-reply for incoming messages
    */
   private async handleAIAutoReply(

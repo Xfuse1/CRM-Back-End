@@ -5,6 +5,7 @@ export interface IWhatsAppClient {
   getQrCode(sessionId: string): string | null;
   sendMessage(sessionId: string, to: string, message: string): Promise<{ messageId: string; chatId: string }>;
   sendMediaMessage?(sessionId: string, to: string, mediaPath: string, caption?: string): Promise<void>;
+  logout?(sessionId: string): Promise<void>;
   isSessionConnected(sessionId: string): boolean;
   getSessionPhoneNumber(sessionId: string): string | undefined;
 }

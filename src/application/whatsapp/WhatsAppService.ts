@@ -43,6 +43,35 @@ export class WhatsAppService {
     }
   }
 
+  /**
+   * Logout from WhatsApp session
+   * This will disconnect and clear the session, then generate a new QR code
+   */
+  async logout(): Promise<void> {
+    if (this.whatsAppManager.logout) {
+      await this.whatsAppManager.logout(this.defaultSessionId);
+    } else {
+      throw new Error('Logout not supported with current WhatsApp client');
+    }
+  }
+
+  /**
+   * Restart the WhatsApp session to generate a new QR code
+   */
+  async restartSession(): Promise<void> {
+    // Delete the current session and reinitialize
+    if (this.whatsAppManager.logout) {
+      try {
+        await this.whatsAppManager.logout(this.defaultSessionId);
+      } catch (error) {
+        console.log('[WhatsApp Service] Logout failed, forcing reinit:', error);
+      }
+    }
+    // Wait a bit then reinitialize
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    await this.whatsAppManager.initSession(this.defaultSessionId);
+  }
+
   // TODO: Add methods for multi-session support
   // TODO: Add methods to fetch chats from Supabase
   // TODO: Add methods to fetch messages from Supabase
