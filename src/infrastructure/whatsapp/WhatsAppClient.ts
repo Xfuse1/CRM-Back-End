@@ -55,7 +55,18 @@ export class WhatsAppClientManager implements IWhatsAppClient {
       }),
       puppeteer: {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        // Use system Chromium in production (Docker), Puppeteer's Chromium locally
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+          '--single-process', // Required for Railway/Docker
+        ],
       },
     });
 
