@@ -185,11 +185,17 @@ export async function listChatsWithLastMessage(): Promise<any[]> {
     take: 50,
   });
 
-  return chats.map((chat: any) => ({
-    ...chat,
-    title: chat.contact?.displayName || chat.title || null,
-    contactJid: chat.contact?.waId || null, // Include contact JID for sending messages
-  }));
+  return chats.map((chat: any) => {
+    // Format phone number for display (remove @s.whatsapp.net)
+    const phoneNumber = chat.contact?.waId?.replace('@s.whatsapp.net', '') || null;
+    
+    return {
+      ...chat,
+      // Priority: displayName > chat.title > phone number
+      title: chat.contact?.displayName || chat.title || phoneNumber || 'محادثة',
+      contactJid: chat.contact?.waId || null, // Include contact JID for sending messages
+    };
+  });
 }
 
 // ============================================
