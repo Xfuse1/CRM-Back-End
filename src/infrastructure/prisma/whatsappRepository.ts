@@ -4,29 +4,32 @@
  */
 
 import prisma from './client';
-import { config } from '../../config/env';
 import logger from '../../utils/logger';
 
 // ============================================
 // Owner ID Context
 // ============================================
 
-// Current owner ID - can be set per-request
+// Current owner ID - MUST be set per-request from authenticated user
 let currentOwnerId: string | null = null;
 
 /**
  * Set the current owner ID for all subsequent repository operations
- * Should be called at the beginning of each request with the authenticated user's ID
+ * MUST be called at the beginning of each request with the authenticated user's ID
  */
-export function setCurrentOwnerId(ownerId: string | null): void {
+export function setCurrentOwnerId(ownerId: string): void {
   currentOwnerId = ownerId;
 }
 
 /**
- * Get the current owner ID, falling back to demo owner if not set
+ * Get the current owner ID
+ * Throws error if not set - authentication is required
  */
 export function getOwnerId(): string {
-  return currentOwnerId || config.demoOwnerId;
+  if (!currentOwnerId) {
+    throw new Error('Owner ID not set. User must be authenticated.');
+  }
+  return currentOwnerId;
 }
 
 // ============================================

@@ -24,27 +24,20 @@ export const whatsappRouter = Router();
 
 /**
  * Middleware to set the current owner ID from authenticated user
- * Falls back to demo owner if not authenticated (for backwards compatibility)
+ * Authentication is REQUIRED - no fallback
  */
 const setOwnerContext = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  const userId = req.user?.id || null;
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
   setCurrentOwnerId(userId);
   next();
 };
 
-// Apply authentication to all WhatsApp routes (optional - falls back to demo user)
-whatsappRouter.use((req: AuthRequest, res: Response, next: NextFunction) => {
-  // Try to authenticate, but don't fail if no token
-  const authHeader = req.headers['authorization'];
-  if (authHeader) {
-    authenticateToken(req, res, (err?: any) => {
-      // Even if auth fails, continue with demo user
-      setOwnerContext(req, res, next);
-    });
-  } else {
-    setOwnerContext(req, res, next);
-  }
-});
+// Apply authentication to all WhatsApp routes - REQUIRED
+whatsappRouter.use(authenticateToken, setOwnerContext);
 
 /**
  * GET /api/whatsapp/status

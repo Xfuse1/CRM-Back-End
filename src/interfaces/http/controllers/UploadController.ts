@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { StorageService } from '../../../application/storage/StorageService';
 import { validateUploadedFile, getFileCategory } from '../../../middleware/upload';
 import { createBadRequestError } from '../../../middleware/errorHandler';
-import { config } from '../../../config/env';
+import { AuthRequest } from '../../../middleware/auth';
 
 export class UploadController {
   private storageService: StorageService;
@@ -24,8 +24,12 @@ export class UploadController {
         throw createBadRequestError('No file uploaded');
       }
 
-      // Get owner ID from authenticated user
-      const ownerId = (req as any).user?.userId || config.demoOwnerId;
+      // Get owner ID from authenticated user (required)
+      const ownerId = (req as AuthRequest).user?.id;
+      if (!ownerId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
 
       // Upload to Supabase Storage
       const result = await this.storageService.uploadFile(

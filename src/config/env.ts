@@ -9,7 +9,6 @@ interface Config {
   supabaseServiceRoleKey: string;
   jwtSecret: string;
   clientOrigin: string;
-  demoOwnerId: string;
 }
 
 function loadConfig(): Config {
@@ -19,7 +18,6 @@ function loadConfig(): Config {
     'SUPABASE_SERVICE_ROLE_KEY',
     'JWT_SECRET',
     'CLIENT_ORIGIN',
-    'DEMO_OWNER_ID',
   ];
 
   const missingVars = requiredEnvVars.filter((varName) => !process.env[varName]);
@@ -37,7 +35,6 @@ function loadConfig(): Config {
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
     jwtSecret: process.env.JWT_SECRET!,
     clientOrigin: process.env.CLIENT_ORIGIN!,
-    demoOwnerId: process.env.DEMO_OWNER_ID!,
   };
 }
 
