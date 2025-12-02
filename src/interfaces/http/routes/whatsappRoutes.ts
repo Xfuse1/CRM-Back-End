@@ -1,11 +1,12 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { WhatsAppController } from '../controllers/WhatsAppController';
 import { WhatsAppPersistenceService } from '../../../application/whatsapp/WhatsAppPersistenceService';
-import { authenticateToken } from '../../../middleware/auth';
+import { authenticateToken, AuthRequest } from '../../../middleware/auth';
 import { validate, schemas } from '../../../middleware/validation';
 import { messageLimiter, whatsappPollingLimiter } from '../../../middleware/rateLimiter';
 import { asyncHandler } from '../../../middleware/errorHandler';
 import { idempotencyMiddleware, cacheIdempotentResponse } from '../../../middleware/idempotency';
+import { setCurrentOwnerId } from '../../../infrastructure/prisma/whatsappRepository';
 
 // This will be injected by the server setup
 let whatsAppController: WhatsAppController;
@@ -21,9 +22,29 @@ export function setWhatsAppPersistenceService(service: WhatsAppPersistenceServic
 
 export const whatsappRouter = Router();
 
-// Apply authentication to all WhatsApp routes
-// TODO: Uncomment when authentication is fully implemented
-// whatsappRouter.use(authenticateToken);
+/**
+ * Middleware to set the current owner ID from authenticated user
+ * Falls back to demo owner if not authenticated (for backwards compatibility)
+ */
+const setOwnerContext = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  const userId = req.user?.id || null;
+  setCurrentOwnerId(userId);
+  next();
+};
+
+// Apply authentication to all WhatsApp routes (optional - falls back to demo user)
+whatsappRouter.use((req: AuthRequest, res: Response, next: NextFunction) => {
+  // Try to authenticate, but don't fail if no token
+  const authHeader = req.headers['authorization'];
+  if (authHeader) {
+    authenticateToken(req, res, (err?: any) => {
+      // Even if auth fails, continue with demo user
+      setOwnerContext(req, res, next);
+    });
+  } else {
+    setOwnerContext(req, res, next);
+  }
+});
 
 /**
  * GET /api/whatsapp/status

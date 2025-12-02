@@ -8,6 +8,28 @@ import { config } from '../../config/env';
 import logger from '../../utils/logger';
 
 // ============================================
+// Owner ID Context
+// ============================================
+
+// Current owner ID - can be set per-request
+let currentOwnerId: string | null = null;
+
+/**
+ * Set the current owner ID for all subsequent repository operations
+ * Should be called at the beginning of each request with the authenticated user's ID
+ */
+export function setCurrentOwnerId(ownerId: string | null): void {
+  currentOwnerId = ownerId;
+}
+
+/**
+ * Get the current owner ID, falling back to demo owner if not set
+ */
+export function getOwnerId(): string {
+  return currentOwnerId || config.demoOwnerId;
+}
+
+// ============================================
 // Session Management
 // ============================================
 
@@ -17,7 +39,7 @@ export async function ensureSessionForKey(sessionKey: string, retries = 3): Prom
       // Try to find existing session
       let session = await prisma.whatsappWebSession.findFirst({
         where: {
-          ownerId: config.demoOwnerId,
+          ownerId: getOwnerId(),
           sessionKey: sessionKey,
         },
       });
@@ -29,7 +51,7 @@ export async function ensureSessionForKey(sessionKey: string, retries = 3): Prom
       // Create new session
       session = await prisma.whatsappWebSession.create({
         data: {
-          ownerId: config.demoOwnerId,
+          ownerId: getOwnerId(),
           sessionKey: sessionKey,
           status: 'disconnected',
         },
@@ -67,7 +89,7 @@ export async function updateSessionStatus(
 
   await prisma.whatsappWebSession.updateMany({
     where: {
-      ownerId: config.demoOwnerId,
+      ownerId: getOwnerId(),
       sessionKey: sessionKey,
     },
     data: updateData,
@@ -98,7 +120,7 @@ export async function upsertContactFromMessage(
   // Try to find existing contact
   let contact = await prisma.contact.findFirst({
     where: {
-      ownerId: config.demoOwnerId,
+      ownerId: getOwnerId(),
       waId: jid,
     },
   });
@@ -117,7 +139,7 @@ export async function upsertContactFromMessage(
   // Create new contact
   contact = await prisma.contact.create({
     data: {
-      ownerId: config.demoOwnerId,
+      ownerId: getOwnerId(),
       waId: jid,
       displayName: displayName || null,
     },
@@ -139,7 +161,7 @@ export async function ensureChatForContact(
   // Try to find existing chat
   let chat = await prisma.chat.findFirst({
     where: {
-      ownerId: config.demoOwnerId,
+      ownerId: getOwnerId(),
       sessionId: sessionId,
       contactId: contactId,
     },
@@ -152,7 +174,7 @@ export async function ensureChatForContact(
   // Create new chat
   chat = await prisma.chat.create({
     data: {
-      ownerId: config.demoOwnerId,
+      ownerId: getOwnerId(),
       sessionId: sessionId,
       contactId: contactId,
       waChatId: waChatId,
@@ -172,7 +194,7 @@ export async function updateChatLastMessage(chatId: string): Promise<void> {
 
 export async function listChatsWithLastMessage(): Promise<any[]> {
   const chats = await prisma.chat.findMany({
-    where: { ownerId: config.demoOwnerId },
+    where: { ownerId: getOwnerId() },
     include: {
       contact: {
         select: {
@@ -228,7 +250,7 @@ export async function insertMessage(params: {
   // Insert new message
   const message = await prisma.message.create({
     data: {
-      ownerId: config.demoOwnerId,
+      ownerId: getOwnerId(),
       sessionId: params.sessionId,
       chatId: params.chatId,
       direction: params.direction,
@@ -257,7 +279,7 @@ export async function listMessagesForChat(
   const offset = options?.offset || 0;
 
   const where: any = {
-    ownerId: config.demoOwnerId,
+    ownerId: getOwnerId(),
     chatId: chatId,
   };
 
@@ -276,7 +298,7 @@ export async function listMessagesForChat(
 export async function getMessageCount(chatId: string): Promise<number> {
   return prisma.message.count({
     where: {
-      ownerId: config.demoOwnerId,
+      ownerId: getOwnerId(),
       chatId: chatId,
     },
   });
