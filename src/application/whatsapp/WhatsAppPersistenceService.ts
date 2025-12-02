@@ -159,6 +159,33 @@ export class WhatsAppPersistenceService {
   }
 
   /**
+   * Get or create a contact and associated chat
+   * Used for syncing chats from WhatsApp history
+   */
+  async getOrCreateContact(
+    sessionKey: string,
+    jid: string,
+    displayName: string
+  ): Promise<{ contact: whatsappRepo.ContactRow; chat: whatsappRepo.ChatRow }> {
+    // Get the session from DB
+    const session = await whatsappRepo.ensureSessionForKey(sessionKey);
+
+    // Convert Baileys JID format (@s.whatsapp.net) to standard format (@c.us)
+    const normalizedJid = jid.replace('@s.whatsapp.net', '@c.us');
+
+    // Upsert contact
+    const contactRow = await whatsappRepo.upsertContactFromMessage(normalizedJid, displayName);
+
+    // Ensure chat exists
+    const chatRow = await whatsappRepo.ensureChatForContact(session.id, contactRow.id);
+
+    return {
+      contact: contactRow,
+      chat: chatRow,
+    };
+  }
+
+  /**
    * Get all messages for a specific chat with pagination
    */
   async getMessages(

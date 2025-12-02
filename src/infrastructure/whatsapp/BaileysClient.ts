@@ -14,6 +14,11 @@ import makeWASocket, {
   proto,
   BufferJSON,
   SignalDataTypeMap,
+  fetchLatestBaileysVersion,
+  WAMessageContent,
+  WAMessageKey,
+  Chat,
+  Contact,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as QRCode from 'qrcode-terminal';
@@ -122,16 +127,17 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
     // Create database-backed auth state
     const { state, saveCreds } = await createDbAuthState(sessionId);
 
-    // Create Baileys socket with silent logger
+    // Create Baileys socket with history sync enabled
     const socket = makeWASocket({
       auth: state,
       printQRInTerminal: false, // We'll handle QR ourselves
       logger: pino({ level: 'silent' }),
-      browser: ['Awfar CRM', 'Chrome', '121.0.0'],
+      browser: ['Awfar CRM', 'Desktop', '3.0'],
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: undefined,
       keepAliveIntervalMs: 30000,
       markOnlineOnConnect: true,
+      syncFullHistory: true, // Enable full history sync like WhatsApp Web
     });
 
     const sessionData: SessionData = {
@@ -370,6 +376,148 @@ export class BaileysWhatsAppClientManager implements IWhatsAppClient {
           await this.handleAIAutoReply(socket, message, result.chatRow.id, sessionData.sessionKey);
         } catch (error) {
           logger.error('[Baileys] Failed to persist message:', error);
+        }
+      }
+    });
+
+    // Handle chat history sync (like WhatsApp Web)
+    socket.ev.on('messaging-history.set', async ({ chats, contacts, messages, isLatest }) => {
+      const sessionData = this.sessions.get(sessionId);
+      if (!sessionData) return;
+
+      logger.info(`[Baileys] History sync received for session ${sessionId}:`);
+      logger.info(`[Baileys]   - Chats: ${chats.length}`);
+      logger.info(`[Baileys]   - Contacts: ${contacts.length}`);
+      logger.info(`[Baileys]   - Messages: ${messages.length}`);
+      logger.info(`[Baileys]   - Is Latest: ${isLatest}`);
+
+      // Process and save chats
+      for (const chat of chats) {
+        try {
+          const jid = chat.id;
+          if (!jid || jid.includes('@g.us')) continue; // Skip groups for now
+
+          const phoneNumber = jid.split('@')[0];
+          const contactName = (chat as any).name || (chat as any).notify || phoneNumber;
+
+          // Get or create contact and chat in database
+          await this.persistenceService.getOrCreateContact(
+            sessionData.sessionKey,
+            jid,
+            contactName
+          );
+
+          logger.debug(`[Baileys] Synced chat: ${contactName} (${phoneNumber})`);
+        } catch (error) {
+          logger.error(`[Baileys] Failed to sync chat ${chat.id}:`, error);
+        }
+      }
+
+      // Process and save messages (messages is array of WAMessage)
+      let totalMessages = 0;
+      for (const msg of messages) {
+        try {
+          // Check if it's a text message
+          if (!msg.message?.conversation && !msg.message?.extendedTextMessage?.text) continue;
+
+          const body = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+          const from = msg.key?.remoteJid || '';
+          const fromMe = msg.key?.fromMe || false;
+
+          if (!from || from.includes('@g.us')) continue; // Skip groups
+
+          // Create message for persistence
+          const messageForPersistence = {
+            id: { _serialized: msg.key?.id || '' },
+            from: fromMe ? socket.user?.id || '' : from,
+            to: fromMe ? from : socket.user?.id || '',
+            body,
+            timestamp: Number(msg.messageTimestamp) || Date.now() / 1000,
+            fromMe,
+            getContact: async () => ({
+              name: msg.pushName || null,
+              pushname: msg.pushName || null,
+              number: from.split('@')[0],
+            }),
+          };
+
+          if (fromMe) {
+            await this.persistenceService.handleOutgoingMessage(
+              sessionData.sessionKey,
+              from.replace('@s.whatsapp.net', '@c.us'),
+              body,
+              msg.key?.id || ''
+            );
+          } else {
+            await this.persistenceService.handleIncomingMessage(
+              sessionData.sessionKey,
+              messageForPersistence as any
+            );
+          }
+          totalMessages++;
+        } catch (error) {
+          // Silent fail for history messages
+        }
+      }
+
+      // Emit chats loaded event to frontend
+      this.realtimeEmitter.emitToAll('whatsapp:chats_synced', {
+        sessionId,
+        chatsCount: chats.length,
+        messagesCount: totalMessages,
+        isLatest,
+      });
+
+      logger.info(`[Baileys] History sync completed for session ${sessionId}`);
+    });
+
+    // Handle new chats
+    socket.ev.on('chats.upsert', async (newChats) => {
+      const sessionData = this.sessions.get(sessionId);
+      if (!sessionData) return;
+
+      logger.info(`[Baileys] New chats received: ${newChats.length}`);
+
+      for (const chat of newChats) {
+        try {
+          const jid = chat.id;
+          if (!jid || jid.includes('@g.us')) continue;
+
+          const phoneNumber = jid.split('@')[0];
+          const contactName = chat.name || phoneNumber;
+
+          await this.persistenceService.getOrCreateContact(
+            sessionData.sessionKey,
+            jid,
+            contactName
+          );
+        } catch (error) {
+          logger.error(`[Baileys] Failed to process new chat:`, error);
+        }
+      }
+    });
+
+    // Handle contacts update
+    socket.ev.on('contacts.upsert', async (newContacts) => {
+      const sessionData = this.sessions.get(sessionId);
+      if (!sessionData) return;
+
+      logger.info(`[Baileys] Contacts received: ${newContacts.length}`);
+
+      for (const contact of newContacts) {
+        try {
+          const jid = contact.id;
+          if (!jid || jid.includes('@g.us')) continue;
+
+          const contactName = contact.name || contact.notify || jid.split('@')[0];
+
+          await this.persistenceService.getOrCreateContact(
+            sessionData.sessionKey,
+            jid,
+            contactName
+          );
+        } catch (error) {
+          logger.error(`[Baileys] Failed to save contact:`, error);
         }
       }
     });
