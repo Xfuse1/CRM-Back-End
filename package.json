@@ -5,12 +5,15 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "build": "tsc",
+    "build": "npx prisma generate && tsc",
     "start": "node dist/server.js",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "migrate": "echo 'Run migrations manually: psql $SUPABASE_URL -f migrations/002_add_auth_fields.sql && psql $SUPABASE_URL -f migrations/003_session_storage.sql && psql $SUPABASE_URL -f migrations/004_prevent_duplicates.sql'",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:push": "prisma db push",
     "test": "echo 'Tests not implemented yet' && exit 0"
   },
   "keywords": [
@@ -26,6 +29,8 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@hapi/boom": "^10.0.1",
+    "@prisma/client": "^5.22.0",
     "@supabase/supabase-js": "^2.39.0",
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.17",
@@ -34,6 +39,7 @@
     "@types/multer": "^2.0.0",
     "@types/node": "^20.10.6",
     "@types/qrcode-terminal": "^0.12.2",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -45,6 +51,7 @@
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
+    "pino": "^10.1.0",
     "qrcode-terminal": "^0.12.0",
     "socket.io": "^4.6.1",
     "typescript": "^5.3.3",
@@ -52,12 +59,14 @@
     "winston": "^3.18.3"
   },
   "devDependencies": {
+    "@types/hapi__boom": "^7.4.1",
     "@typescript-eslint/eslint-plugin": "^6.16.0",
     "@typescript-eslint/parser": "^6.16.0",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.2",
     "prettier": "^3.1.1",
+    "prisma": "^5.22.0",
     "ts-node-dev": "^2.0.0"
   }
 }

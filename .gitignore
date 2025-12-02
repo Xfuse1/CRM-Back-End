@@ -45,3 +45,5 @@ logs/
 
 # TypeScript
 *.tsbuildinfo
+
+/src/generated/prisma

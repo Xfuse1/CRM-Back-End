@@ -3,12 +3,14 @@ import { config } from './config/env';
 import { createApp } from './interfaces/http/app';
 import { createSocketServer } from './infrastructure/realtime/socketServer';
 import { WhatsAppClientManager } from './infrastructure/whatsapp/WhatsAppClient';
+import { BaileysWhatsAppClientManager } from './infrastructure/whatsapp/BaileysClient';
 import { WhatsAppService } from './application/whatsapp/WhatsAppService';
 import { WhatsAppPersistenceService } from './application/whatsapp/WhatsAppPersistenceService';
 import { SessionCleanupService } from './application/whatsapp/SessionCleanupService';
 import { ApiRequestCleanupService } from './application/cleanup/ApiRequestCleanupService';
 import { StorageService } from './application/storage/StorageService';
 import { WhatsAppController } from './interfaces/http/controllers/WhatsAppController';
+import { IWhatsAppClient } from './domain/whatsapp/interfaces';
 import {
   setWhatsAppController,
   setWhatsAppPersistenceService,
@@ -33,8 +35,18 @@ async function bootstrap() {
     const persistenceService = new WhatsAppPersistenceService();
 
     // Initialize WhatsApp client manager
-    console.log('[Server] Initializing WhatsApp client manager...');
-    const whatsAppManager = new WhatsAppClientManager(realtimeServer, persistenceService);
+    // Use Baileys for Railway/production (database-backed sessions)
+    // Use whatsapp-web.js for local development (file-based sessions)
+    const useBaileys = process.env.USE_BAILEYS === 'true' || process.env.NODE_ENV === 'production';
+    
+    console.log(`[Server] Initializing WhatsApp client manager (${useBaileys ? 'Baileys' : 'whatsapp-web.js'})...`);
+    
+    let whatsAppManager: IWhatsAppClient;
+    if (useBaileys) {
+      whatsAppManager = new BaileysWhatsAppClientManager(realtimeServer, persistenceService);
+    } else {
+      whatsAppManager = new WhatsAppClientManager(realtimeServer, persistenceService);
+    }
 
     // Create application services
     const whatsAppService = new WhatsAppService(whatsAppManager);

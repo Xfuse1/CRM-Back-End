@@ -1,13 +1,11 @@
-import { WhatsAppClientManager } from '../../infrastructure/whatsapp/WhatsAppClient';
+import { IWhatsAppClient } from '../../domain/whatsapp/interfaces';
 import { SessionStatus } from '../../domain/whatsapp/types';
-import { MessageMedia } from 'whatsapp-web.js';
-import fs from 'fs/promises';
 
 export class WhatsAppService {
-  private whatsAppManager: WhatsAppClientManager;
+  private whatsAppManager: IWhatsAppClient;
   private defaultSessionId = 'default';
 
-  constructor(whatsAppManager: WhatsAppClientManager) {
+  constructor(whatsAppManager: IWhatsAppClient) {
     this.whatsAppManager = whatsAppManager;
   }
 
@@ -38,7 +36,11 @@ export class WhatsAppService {
    * @param caption - Optional caption
    */
   async sendMediaMessage(to: string, mediaPath: string, caption?: string): Promise<void> {
-    await this.whatsAppManager.sendMediaMessage(this.defaultSessionId, to, mediaPath, caption);
+    if (this.whatsAppManager.sendMediaMessage) {
+      await this.whatsAppManager.sendMediaMessage(this.defaultSessionId, to, mediaPath, caption);
+    } else {
+      throw new Error('Media messages not supported with current WhatsApp client');
+    }
   }
 
   // TODO: Add methods for multi-session support

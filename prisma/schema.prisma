@@ -1,0 +1,24 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// WhatsApp session storage for Baileys
+// Stores auth state as binary data for persistence across server restarts
+model WhatsappSession {
+  id        String   @id @default(uuid())
+  ownerId   String   @unique @map("owner_id")
+  data      Bytes?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_baileys_sessions")
+}
